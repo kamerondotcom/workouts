@@ -1,0 +1,121 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+  engineType    = "library"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String           @id @default(cuid())
+  email           String           @unique
+  name            String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  password        String
+  categories      Category[]
+  workoutSessions WorkoutSession[]
+}
+
+model WorkoutSession {
+  id             String                   @id @default(cuid())
+  date           DateTime
+  location       String
+  workoutType    String
+  duration       Int
+  activeCalories Int
+  totalCalories  Int
+  avgHeartRate   Int
+  effort         Int
+  sessionName    String?
+  notes          String?
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+  userId         String
+  exercises      WorkoutExercise[]
+  user           User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categories     WorkoutSessionCategory[]
+
+  @@index([userId])
+  @@index([userId, date])
+  @@index([userId, createdAt])
+  @@index([date])
+  @@index([location])
+  @@index([workoutType])
+  @@index([date, createdAt])
+  @@index([date, location])
+  @@index([workoutType, date])
+  @@index([userId, workoutType, date])
+  @@index([userId, location, date])
+}
+
+model WorkoutExercise {
+  id              String         @id @default(cuid())
+  sessionId       String
+  component       String
+  exercise        String
+  notes           String?
+  orderInSession  Int            @default(0)
+  isWeightTracked Boolean        @default(false)
+  weight          Float?
+  reps            Int?
+  sets            Int?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  session         WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  workoutSets     WorkoutSet[]
+
+  @@index([sessionId, orderInSession])
+  @@index([exercise])
+  @@index([exercise], map: "exercise_text_search")
+  @@index([sessionId])
+  @@index([component, sessionId])
+  @@index([exercise, sessionId])
+  @@index([component, exercise])
+}
+
+model WorkoutSet {
+  id         String          @id @default(cuid())
+  setNumber  Int
+  weight     Float
+  reps       Int
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+  exerciseId String
+  exercise   WorkoutExercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+
+  @@unique([exerciseId, setNumber])
+  @@index([exerciseId])
+  @@index([exerciseId, setNumber])
+  @@index([weight, reps])
+}
+
+model Category {
+  id          String                   @id @default(cuid())
+  name        String
+  color       String                   @default("#3B82F6")
+  description String?
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
+  userId      String
+  user        User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessions    WorkoutSessionCategory[]
+
+  @@unique([userId, name])
+  @@index([userId])
+}
+
+model WorkoutSessionCategory {
+  sessionId  String
+  categoryId String
+  assignedAt DateTime       @default(now())
+  category   Category       @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  session    WorkoutSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@id([sessionId, categoryId])
+  @@index([sessionId])
+  @@index([categoryId])
+}
