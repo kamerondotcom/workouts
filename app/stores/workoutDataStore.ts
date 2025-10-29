@@ -36,6 +36,7 @@ const GET_WORKOUT_SESSIONS = gql`
             setNumber
             weight
             reps
+            equipment
             createdAt
           }
         }
@@ -199,6 +200,7 @@ const SEARCH_EXERCISES = gql`
           setNumber
           weight
           reps
+          equipment
           createdAt
         }
         session {
@@ -272,6 +274,7 @@ interface WorkoutSet {
   setNumber: number;
   weight?: number;
   reps?: number;
+  equipment?: string;
   createdAt: string;
   updatedAt: string;
 }
