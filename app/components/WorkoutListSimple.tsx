@@ -6,6 +6,8 @@ import { useUser } from "../contexts/UserContext";
 import WorkoutSkeleton from "./WorkoutSkeleton";
 import EditSessionDetails from "./EditSessionDetails";
 import EditWorkoutSession from "./EditWorkoutSession";
+import WorkoutHeatmap from "./WorkoutHeatmap";
+import CategoryFilterDialog from "./CategoryFilterDialog";
 import { useMutation } from "@apollo/client/react";
 import { gql } from "@apollo/client";
 import { useModal } from "../services/modalService";
@@ -39,6 +41,7 @@ export default function WorkoutListSimple({
     selectedCategoryIds,
     fetchWorkouts,
     fetchCategories,
+    fetchWorkoutCount,
     fetchSearchResults,
     loadMoreWorkouts,
     setSearchQuery,
@@ -47,6 +50,7 @@ export default function WorkoutListSimple({
     updateSet,
     createSet,
     updateExerciseName,
+    updateExerciseNotes,
     deleteSet,
   } = useWorkoutDataStore();
 
@@ -79,12 +83,25 @@ export default function WorkoutListSimple({
     weight: number;
     reps: number;
     exerciseName: string;
+    equipment: string;
   } | null>(null);
   const [savingSet, setSavingSet] = useState(false);
   const [editingExercise, setEditingExercise] = useState<{
     exerciseId: string;
     exerciseName: string;
   } | null>(null);
+  const [editingNotes, setEditingNotes] = useState<{
+    exerciseId: string;
+    notes: string;
+  } | null>(null);
+  const [savingNotes, setSavingNotes] = useState(false);
+
+  // Focus trap refs
+  const notesModalRef = useRef<HTMLDivElement>(null);
+  const notesTextareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Filter dialog state
+  const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false);
 
   // Track previously seen workout IDs to identify new ones
   const [previousWorkoutIds, setPreviousWorkoutIds] = useState<Set<string>>(
@@ -105,6 +122,117 @@ export default function WorkoutListSimple({
       fetchCategories();
     }
   }, [isAuthenticated, isLoading, fetchWorkouts, fetchCategories]);
+
+  // Listen for CSV import completion events
+  useEffect(() => {
+    const handleImportComplete = () => {
+      console.log("🔄 CSV import detected, refreshing workout data...");
+      // Force refresh with network-only to bypass cache
+      fetchWorkouts(10, 0, undefined, true);
+      fetchWorkoutCount();
+    };
+
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === "workout-import-trigger") {
+        console.log(
+          "🔄 Import trigger detected in localStorage, refreshing..."
+        );
+        handleImportComplete();
+      }
+    };
+
+    // Listen for custom import-complete event
+    window.addEventListener("import-complete", handleImportComplete);
+
+    // Listen for localStorage changes (for when component is not mounted during import)
+    window.addEventListener("storage", handleStorageChange);
+
+    // Check for existing import trigger on mount
+    const importTrigger = localStorage.getItem("workout-import-trigger");
+    if (importTrigger) {
+      console.log("🔄 Found existing import trigger, refreshing...");
+      handleImportComplete();
+      localStorage.removeItem("workout-import-trigger");
+    }
+
+    return () => {
+      window.removeEventListener("import-complete", handleImportComplete);
+      window.removeEventListener("storage", handleStorageChange);
+    };
+  }, [fetchWorkouts, fetchWorkoutCount]);
+
+  // Focus trap for notes modal
+  useEffect(() => {
+    if (editingNotes && notesTextareaRef.current) {
+      // Focus the textarea when modal opens
+      notesTextareaRef.current.focus();
+    }
+  }, [editingNotes]);
+
+  // Global escape key handler for all modals
+  useEffect(() => {
+    const handleEscapeKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        // Close any open modal in order of priority
+        if (editingSet) {
+          setEditingSet(null);
+        } else if (editingNotes) {
+          setEditingNotes(null);
+        } else if (editingSessionDetails) {
+          setEditingSessionDetails(null);
+        } else if (editingSession) {
+          setEditingSession(null);
+        } else if (isFilterDialogOpen) {
+          setIsFilterDialogOpen(false);
+        }
+      }
+    };
+
+    document.addEventListener("keydown", handleEscapeKey);
+    return () => document.removeEventListener("keydown", handleEscapeKey);
+  }, [
+    editingSet,
+    editingNotes,
+    editingSessionDetails,
+    editingSession,
+    isFilterDialogOpen,
+  ]);
+
+  // Focus trap for notes modal
+  useEffect(() => {
+    if (!editingNotes || !notesModalRef.current) return;
+
+    const modal = notesModalRef.current;
+    const focusableElements = modal.querySelectorAll(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    );
+    const firstElement = focusableElements[0] as HTMLElement;
+    const lastElement = focusableElements[
+      focusableElements.length - 1
+    ] as HTMLElement;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Tab") {
+        if (e.shiftKey) {
+          // Shift + Tab
+          if (document.activeElement === firstElement) {
+            e.preventDefault();
+            lastElement?.focus();
+          }
+        } else {
+          // Tab
+          if (document.activeElement === lastElement) {
+            e.preventDefault();
+            firstElement?.focus();
+          }
+        }
+      }
+      // Escape key is now handled by the global handler above
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [editingNotes]);
 
   // Auto-collapse new workouts when they're added
   useEffect(() => {
@@ -206,15 +334,46 @@ export default function WorkoutListSimple({
     });
   };
 
-  // Format date helper
+  // Format date helper - handles timezone issues properly
   const formatUTCDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString("en-US", {
+    // Debug logging to see what we're getting
+    console.log("formatUTCDate received:", dateString);
+    
+    // Handle edge cases
+    if (!dateString || typeof dateString !== 'string') {
+      console.error("Invalid dateString:", dateString);
+      return "Invalid Date";
+    }
+
+    // Extract just the date part (YYYY-MM-DD) and create a new date in local timezone
+    // This avoids timezone conversion issues when displaying dates
+    const dateOnly = dateString.split("T")[0]; // Get YYYY-MM-DD part
+    console.log("dateOnly extracted:", dateOnly);
+    
+    // Validate the date format
+    if (!dateOnly || !/^\d{4}-\d{2}-\d{2}$/.test(dateOnly)) {
+      console.error("Invalid date format:", dateOnly);
+      return "Invalid Date Format";
+    }
+    
+    const localDate = new Date(dateOnly + "T12:00:00"); // Use noon to avoid timezone issues
+    console.log("localDate created:", localDate);
+    
+    // Check if the date is valid
+    if (isNaN(localDate.getTime())) {
+      console.error("Invalid date object created from:", dateOnly);
+      return "Invalid Date";
+    }
+
+    const formatted = localDate.toLocaleDateString("en-US", {
       weekday: "long",
       year: "numeric",
       month: "long",
       day: "numeric",
     });
+    
+    console.log("formatted result:", formatted);
+    return formatted;
   };
 
   // Context menu helpers
@@ -311,16 +470,42 @@ export default function WorkoutListSimple({
   // Show workout list
   return (
     <div className="space-y-4">
+      {/* Workout Heatmap */}
+      <WorkoutHeatmap className="mb-6" />
+
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
           Your Workouts ({totalWorkouts})
         </h2>
+        <button
+          onClick={() => setIsFilterDialogOpen(true)}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+        >
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
+            />
+          </svg>
+          Filters
+        </button>
+      </div>
+
+      {/* Search Bar */}
+      <div className="w-full">
         <input
           type="text"
           placeholder="Search exercises..."
           value={searchInput}
           onChange={(e) => handleSearch(e.target.value)}
-          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
         />
       </div>
 
@@ -331,101 +516,191 @@ export default function WorkoutListSimple({
             <div className="flex justify-center items-center p-8">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
             </div>
-          ) : searchResults.length > 0 ? (
-            <div className="space-y-4">
+          ) : !searchLoading && searchResults.length > 0 ? (
+            <div className="space-y-2">
               <div className="text-sm text-gray-500 mb-2">
                 Found {searchResults.length} exercises
               </div>
               {searchResults.map((exercise) => (
                 <div
                   key={exercise.id}
-                  className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 border border-gray-200 dark:border-gray-700"
+                  className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow"
                 >
-                  <div className="flex justify-between items-start">
-                    <div>
-                      {editingExercise?.exerciseId === exercise.id ? (
-                        <input
-                          type="text"
-                          value={editingExercise.exerciseName}
-                          onChange={(e) =>
-                            setEditingExercise({
-                              ...editingExercise,
-                              exerciseName: e.target.value,
-                            })
-                          }
-                          onBlur={async () => {
-                            if (editingExercise) {
-                              try {
-                                await updateExerciseName(
-                                  editingExercise.exerciseId,
-                                  editingExercise.exerciseName
-                                );
-                                setEditingExercise(null);
-                              } catch (error) {
-                                console.error(
-                                  "Failed to update exercise name:",
-                                  error
-                                );
+                  {/* Compact Header */}
+                  <div className="p-4">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex-1 min-w-0">
+                        {editingExercise?.exerciseId === exercise.id ? (
+                          <input
+                            type="text"
+                            value={editingExercise.exerciseName}
+                            onChange={(e) =>
+                              setEditingExercise({
+                                ...editingExercise,
+                                exerciseName: e.target.value,
+                              })
+                            }
+                            onBlur={async () => {
+                              if (editingExercise) {
+                                try {
+                                  await updateExerciseName(
+                                    editingExercise.exerciseId,
+                                    editingExercise.exerciseName
+                                  );
+                                  setEditingExercise(null);
+                                } catch (error) {
+                                  console.error(
+                                    "Failed to update exercise name:",
+                                    error
+                                  );
+                                  setEditingExercise(null);
+                                }
+                              }
+                            }}
+                            onKeyDown={async (e) => {
+                              if (e.key === "Enter" && editingExercise) {
+                                try {
+                                  await updateExerciseName(
+                                    editingExercise.exerciseId,
+                                    editingExercise.exerciseName
+                                  );
+                                  setEditingExercise(null);
+                                } catch (error) {
+                                  console.error(
+                                    "Failed to update exercise name:",
+                                    error
+                                  );
+                                  setEditingExercise(null);
+                                }
+                              } else if (e.key === "Escape") {
                                 setEditingExercise(null);
                               }
+                            }}
+                            className="text-lg font-semibold text-gray-900 dark:text-white bg-gray-50 dark:bg-gray-700 focus:outline-none transition-all duration-200 ease-in-out border-b-2 border-blue-500 w-full"
+                            autoFocus
+                          />
+                        ) : (
+                          <h3
+                            className="text-lg font-semibold text-gray-900 dark:text-white cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors border-b-2 border-transparent"
+                            onDoubleClick={() =>
+                              setEditingExercise({
+                                exerciseId: exercise.id,
+                                exerciseName: exercise.exercise,
+                              })
                             }
-                          }}
-                          onKeyDown={async (e) => {
-                            if (e.key === "Enter" && editingExercise) {
-                              try {
-                                await updateExerciseName(
-                                  editingExercise.exerciseId,
-                                  editingExercise.exerciseName
-                                );
-                                setEditingExercise(null);
-                              } catch (error) {
-                                console.error(
-                                  "Failed to update exercise name:",
-                                  error
-                                );
-                                setEditingExercise(null);
-                              }
-                            } else if (e.key === "Escape") {
-                              setEditingExercise(null);
-                            }
-                          }}
-                          className="font-medium text-gray-900 dark:text-white bg-gray-50 dark:bg-gray-700 border-2 border-blue-500 rounded-md px-3 py-1 focus:outline-none focus:ring-2 focus:ring-blue-300 dark:focus:ring-blue-600 shadow-sm"
-                          autoFocus
-                        />
-                      ) : (
-                        <h4
-                          className="font-medium text-gray-900 dark:text-white cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-2 py-1 rounded transition-colors"
-                          onDoubleClick={() =>
-                            setEditingExercise({
-                              exerciseId: exercise.id,
-                              exerciseName: exercise.exercise,
-                            })
-                          }
-                        >
-                          {exercise.exercise}
-                        </h4>
-                      )}
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
-                        {exercise.component}
-                      </p>
-                      {/* {exercise.session && (
-                        <p className="text-xs text-gray-500 dark:text-gray-500">
-                          From: {exercise.session.sessionName || "Workout"} -{" "}
-                          {new Date(exercise.session.date).toLocaleDateString()}
-                        </p>
-                      )} */}
+                          >
+                            {exercise.exercise}
+                          </h3>
+                        )}
+
+                        {/* Component and Session Info in one line */}
+                        <div className="flex items-center gap-3 mt-1">
+                          {exercise.component && (
+                            <span className="inline-block bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 text-xs px-2 py-0.5 rounded-full">
+                              {exercise.component}
+                            </span>
+                          )}
+                          {exercise.session && (
+                            <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                              <span>
+                                {exercise.session.sessionName || "Workout"}
+                              </span>
+                              <span>•</span>
+                              <span>
+                                {new Date(
+                                  exercise.session.date
+                                ).toLocaleDateString()}
+                              </span>
+                              {/* Debug: Show raw data */}
+                              <div className="text-xs text-red-500 mt-1">
+                                DEBUG: Categories ={" "}
+                                {JSON.stringify(exercise.session.categories)}
+                              </div>
+                              {exercise.session.categories &&
+                              exercise.session.categories.length > 0 ? (
+                                <>
+                                  <span>•</span>
+                                  <div className="flex gap-1 flex-wrap">
+                                    {exercise.session.categories.map(
+                                      (category) => (
+                                        <span
+                                          key={category.id}
+                                          className="text-xs px-1.5 py-0.5 rounded text-white"
+                                          style={{
+                                            backgroundColor: category.color,
+                                          }}
+                                        >
+                                          {category.name}
+                                        </span>
+                                      )
+                                    )}
+                                  </div>
+                                </>
+                              ) : (
+                                <span className="text-xs text-gray-400">
+                                  (No categories)
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
+
+                    {/* Compact Sets Display */}
+                    {exercise.workoutSets && exercise.workoutSets.length > 0 ? (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                            {exercise.workoutSets.length} sets
+                          </span>
+                          <div className="flex gap-1 flex-wrap">
+                            {exercise.workoutSets.slice(0, 6).map((set) => (
+                              <span
+                                key={set.id}
+                                className="text-xs bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-300 px-2 py-1 rounded"
+                              >
+                                {set.weight
+                                  ? `${set.weight}×${set.reps}`
+                                  : `${set.reps} reps`}
+                              </span>
+                            ))}
+                            {exercise.workoutSets.length > 6 && (
+                              <span className="text-xs text-gray-500 dark:text-gray-400 px-2 py-1">
+                                +{exercise.workoutSets.length - 6} more
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-sm text-gray-500 dark:text-gray-400">
+                        No sets recorded
+                      </div>
+                    )}
+
+                    {/* Compact Notes */}
+                    {exercise.notes && (
+                      <div className="mt-2 p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded text-sm">
+                        <span className="font-medium text-gray-700 dark:text-gray-300">
+                          Notes:
+                        </span>{" "}
+                        <span className="text-gray-600 dark:text-gray-400">
+                          {exercise.notes}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
             </div>
-          ) : (
+          ) : !searchLoading ? (
             <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-6 text-center">
               <p className="text-gray-600 dark:text-gray-400">
                 No exercises found matching "{searchInput}"
               </p>
             </div>
-          )}
+          ) : null}
         </div>
       )}
 
@@ -788,12 +1063,12 @@ export default function WorkoutListSimple({
                                         setEditingExercise(null);
                                       }
                                     }}
-                                    className="text-xl font-bold text-gray-900 dark:text-white bg-gray-50 dark:bg-gray-700 border-2 border-blue-500 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-300 dark:focus:ring-blue-600 shadow-sm w-full"
+                                    className="text-xl font-bold text-gray-900 dark:text-white bg-gray-50 dark:bg-gray-700 focus:outline-none w-full transition-all duration-200 ease-in-out border-b-2 border-blue-500"
                                     autoFocus
                                   />
                                 ) : (
                                   <h3
-                                    className="text-xl font-bold text-gray-900 dark:text-white cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-3 py-2 rounded-lg transition-colors"
+                                    className="text-xl font-bold text-gray-900 dark:text-white cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors border-b-2 border-transparent"
                                     onDoubleClick={() =>
                                       setEditingExercise({
                                         exerciseId: exercise.id,
@@ -807,26 +1082,84 @@ export default function WorkoutListSimple({
                               </div>
 
                               {/* Exercise Details */}
-                              <div className="space-y-2">
-                                {/* Component/Station */}
+                              <div className="space-y-3">
+                                {/* Component - Small and Subtle */}
                                 {exercise.component && (
                                   <div className="flex items-center gap-2">
-                                    <div className="w-2 h-2 bg-gray-400 dark:bg-gray-500 rounded-full"></div>
-                                    <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                                    <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
+                                      Component:
+                                    </span>
+                                    <span className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-2 py-1 rounded-full">
                                       {exercise.component}
                                     </span>
                                   </div>
                                 )}
 
                                 {/* Notes */}
-                                {exercise.notes && (
-                                  <div className="flex items-start gap-2">
-                                    <div className="w-2 h-2 bg-blue-400 dark:bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
-                                    <span className="text-sm text-gray-500 dark:text-gray-500 italic">
-                                      {exercise.notes}
-                                    </span>
+                                <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 border border-blue-200 dark:border-blue-800">
+                                  <div className="flex items-start gap-3">
+                                    <div className="w-8 h-8 bg-blue-100 dark:bg-blue-800/30 rounded-lg flex items-center justify-center flex-shrink-0">
+                                      <svg
+                                        className="w-4 h-4 text-blue-600 dark:text-blue-400"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                      >
+                                        <path
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                          strokeWidth={2}
+                                          d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"
+                                        />
+                                      </svg>
+                                    </div>
+                                    <div>
+                                      <div className="text-xs font-medium text-blue-600 dark:text-blue-400 uppercase tracking-wide">
+                                        Notes
+                                      </div>
+                                      <div className="text-sm text-blue-800 dark:text-blue-200 leading-relaxed">
+                                        {exercise.notes ? (
+                                          <button
+                                            onClick={() =>
+                                              setEditingNotes({
+                                                exerciseId: exercise.id,
+                                                notes: exercise.notes || "",
+                                              })
+                                            }
+                                            className="text-left w-full cursor-pointer hover:underline"
+                                          >
+                                            {exercise.notes}
+                                          </button>
+                                        ) : (
+                                          <button
+                                            onClick={() =>
+                                              setEditingNotes({
+                                                exerciseId: exercise.id,
+                                                notes: "",
+                                              })
+                                            }
+                                            className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
+                                          >
+                                            <svg
+                                              className="w-3 h-3"
+                                              fill="none"
+                                              stroke="currentColor"
+                                              viewBox="0 0 24 24"
+                                            >
+                                              <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeWidth={2}
+                                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                                              />
+                                            </svg>
+                                            Add notes
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
                                   </div>
-                                )}
+                                </div>
                               </div>
                             </div>
 
@@ -858,6 +1191,8 @@ export default function WorkoutListSimple({
                                           weight: set.weight || 0,
                                           reps: set.reps || 0,
                                           exerciseName: exercise.exercise,
+                                          equipment:
+                                            set.equipment || "dumbbell-both",
                                         })
                                       }
                                       className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm border border-gray-200 dark:border-gray-600 hover:shadow-md hover:border-blue-300 dark:hover:border-blue-600 transition-all cursor-pointer flex-shrink-0 min-w-[140px]"
@@ -891,6 +1226,7 @@ export default function WorkoutListSimple({
                                         weight: 0,
                                         reps: 0,
                                         exerciseName: exercise.exercise,
+                                        equipment: "dumbbell-both",
                                       });
                                     }}
                                     className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm border-2 border-dashed border-blue-300 dark:border-blue-600 hover:border-blue-400 dark:hover:border-blue-500 hover:shadow-md transition-all cursor-pointer flex-shrink-0 min-w-[140px]"
@@ -938,6 +1274,7 @@ export default function WorkoutListSimple({
                                         weight: 0,
                                         reps: 0,
                                         exerciseName: exercise.exercise,
+                                        equipment: "dumbbell-both",
                                       });
                                     }}
                                     className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 mx-auto"
@@ -1025,7 +1362,7 @@ export default function WorkoutListSimple({
           onUpdate={() => {
             setEditingSession(null);
             // Refresh workouts to show updated categories
-            fetchWorkouts(10, 0);
+            fetchWorkouts(10, 0, undefined, true);
           }}
         />
       )}
@@ -1042,7 +1379,7 @@ export default function WorkoutListSimple({
           onUpdate={() => {
             setEditingSessionDetails(null);
             // Refresh workouts to show updated session details
-            fetchWorkouts(10, 0);
+            fetchWorkouts(10, 0, undefined, true);
           }}
         />
       )}
@@ -1109,7 +1446,8 @@ export default function WorkoutListSimple({
                           exercise.id,
                           editingSet.setNumber,
                           editingSet.weight,
-                          editingSet.reps
+                          editingSet.reps,
+                          editingSet.equipment
                         );
                         setEditingSet(null);
                       }
@@ -1119,7 +1457,8 @@ export default function WorkoutListSimple({
                     await updateSet(
                       editingSet.setId,
                       editingSet.weight,
-                      editingSet.reps
+                      editingSet.reps,
+                      editingSet.equipment
                     );
                     setEditingSet(null);
                   }
@@ -1134,19 +1473,56 @@ export default function WorkoutListSimple({
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Equipment
+                  </label>
+                  <select
+                    value={editingSet.equipment}
+                    onChange={(e) =>
+                      setEditingSet({
+                        ...editingSet,
+                        equipment: e.target.value,
+                      })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  >
+                    <option value="dumbbell-both">Dumbbell (both hands)</option>
+                    <option value="dumbbell-single">
+                      Dumbbell (single hand)
+                    </option>
+                    <option value="kettlebell">Kettlebell</option>
+                    <option value="medicineball">Medicine Ball</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Weight (lbs)
                   </label>
                   <input
                     type="number"
                     value={editingSet.weight}
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      // Allow empty string for better UX when typing
+                      const weight = value === "" ? 0 : parseFloat(value) || 0;
                       setEditingSet({
                         ...editingSet,
-                        weight: parseFloat(e.target.value) || 0,
-                      })
-                    }
+                        weight: weight,
+                      });
+                    }}
+                    onFocus={(e) => {
+                      // Select all text when focusing to make it easier to replace
+                      e.target.select();
+                    }}
                     onKeyDown={(e) => {
-                      if (e.key === "Enter") {
+                      // If user starts typing a number and current value is 0, clear the field
+                      if (editingSet.weight === 0 && /[1-9]/.test(e.key)) {
+                        e.preventDefault();
+                        setEditingSet({
+                          ...editingSet,
+                          weight: parseFloat(e.key) || 0,
+                        });
+                      } else if (e.key === "Enter") {
                         e.preventDefault();
                         // Trigger form submission
                         const form = e.currentTarget.closest("form");
@@ -1169,14 +1545,28 @@ export default function WorkoutListSimple({
                   <input
                     type="number"
                     value={editingSet.reps}
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      // Allow empty string for better UX when typing
+                      const reps = value === "" ? 0 : parseInt(value) || 0;
                       setEditingSet({
                         ...editingSet,
-                        reps: parseInt(e.target.value) || 0,
-                      })
-                    }
+                        reps: reps,
+                      });
+                    }}
+                    onFocus={(e) => {
+                      // Select all text when focusing to make it easier to replace
+                      e.target.select();
+                    }}
                     onKeyDown={(e) => {
-                      if (e.key === "Enter") {
+                      // If user starts typing a number and current value is 0, clear the field
+                      if (editingSet.reps === 0 && /[1-9]/.test(e.key)) {
+                        e.preventDefault();
+                        setEditingSet({
+                          ...editingSet,
+                          reps: parseInt(e.key) || 0,
+                        });
+                      } else if (e.key === "Enter") {
                         e.preventDefault();
                         // Trigger form submission
                         const form = e.currentTarget.closest("form");
@@ -1243,6 +1633,118 @@ export default function WorkoutListSimple({
           </div>
         </div>
       )}
+
+      {/* Edit Notes Modal */}
+      {editingNotes && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div
+            ref={notesModalRef}
+            className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md mx-4"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                Edit Notes
+              </h3>
+              <button
+                onClick={() => setEditingNotes(null)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setSavingNotes(true);
+                try {
+                  await updateExerciseNotes(
+                    editingNotes.exerciseId,
+                    editingNotes.notes
+                  );
+                  setEditingNotes(null);
+                } catch (error) {
+                  console.error("Failed to update notes:", error);
+                } finally {
+                  setSavingNotes(false);
+                }
+              }}
+            >
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Notes
+                </label>
+                <textarea
+                  ref={notesTextareaRef}
+                  value={editingNotes.notes}
+                  onChange={(e) =>
+                    setEditingNotes({
+                      ...editingNotes,
+                      notes: e.target.value,
+                    })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  rows={4}
+                  placeholder="Add your notes here..."
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck="false"
+                  data-form-type="other"
+                  data-lpignore="true"
+                  data-1p-ignore="true"
+                  data-bwignore="true"
+                  data-dashlane-ignore="true"
+                  data-bitwarden-watching="false"
+                  name="notes-textarea"
+                  id="notes-textarea"
+                  readOnly={false}
+                  inputMode="text"
+                />
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                <button
+                  type="button"
+                  onClick={() => setEditingNotes(null)}
+                  disabled={savingNotes}
+                  className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingNotes}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {savingNotes ? "Saving..." : "Save Notes"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Category Filter Dialog */}
+      <CategoryFilterDialog
+        categories={categories}
+        selectedCategoryIds={selectedCategoryIds}
+        onCategoryChange={setSelectedCategories}
+        isOpen={isFilterDialogOpen}
+        onClose={() => setIsFilterDialogOpen(false)}
+      />
     </div>
   );
 }

@@ -307,8 +307,9 @@ export const resolvers = {
     },
 
     workoutSessionsByDate: async (_: any, { date }: { date: string }) => {
-      const startDate = new Date(date);
-      const endDate = new Date(date);
+      // Parse date with timezone awareness to avoid off-by-one day issues
+      const startDate = new Date(date + "T12:00:00");
+      const endDate = new Date(date + "T12:00:00");
       endDate.setDate(endDate.getDate() + 1);
 
       return await prisma.workoutSession.findMany({
@@ -344,8 +345,12 @@ export const resolvers = {
       });
 
       return sessions.map((session) => {
+        // Format date consistently without timezone conversion issues
         const date = new Date(session.date);
-        return date.toISOString().split("T")[0];
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const day = String(date.getDate()).padStart(2, "0");
+        return `${year}-${month}-${day}`;
       });
     },
 
@@ -591,7 +596,10 @@ export const resolvers = {
       };
 
       // Return results with cache metadata
-      return transformedResults;
+      return {
+        exercises: transformedResults,
+        cache: cacheMetadata,
+      };
     },
   },
 
@@ -1334,9 +1342,46 @@ export const resolvers = {
       return updatedExercise;
     },
 
+    updateExerciseNotes: async (
+      _: any,
+      { exerciseId, notes }: { exerciseId: string; notes: string }
+    ) => {
+      // Get the userId from the exercise's session
+      const exercise = await prisma.workoutExercise.findUnique({
+        where: { id: exerciseId },
+        select: {
+          sessionId: true,
+          session: {
+            select: { userId: true },
+          },
+        },
+      });
+
+      if (!exercise) {
+        throw new Error("Exercise not found");
+      }
+
+      const updatedExercise = await prisma.workoutExercise.update({
+        where: { id: exerciseId },
+        data: { notes: notes },
+      });
+
+      // Clear user's workout cache since data changed
+      if (exercise.session.userId) {
+        await redisCache.clearAllUserCache(exercise.session.userId);
+      }
+
+      return updatedExercise;
+    },
+
     updateWorkoutSet: async (
       _: any,
-      { setId, weight, reps }: { setId: string; weight: number; reps: number }
+      {
+        setId,
+        weight,
+        reps,
+        equipment,
+      }: { setId: string; weight: number; reps: number; equipment?: string }
     ) => {
       // Get the userId from the set's exercise session
       const workoutSet = await prisma.workoutSet.findUnique({
@@ -1358,9 +1403,17 @@ export const resolvers = {
         throw new Error("Workout set not found");
       }
 
+      const updateData: any = { weight, reps };
+      if (equipment !== undefined) {
+        updateData.equipment = equipment;
+      }
+
+      console.log("🔍 updateWorkoutSet - equipment parameter:", equipment);
+      console.log("🔍 updateWorkoutSet - updateData:", updateData);
+
       const updatedSet = await prisma.workoutSet.update({
         where: { id: setId },
-        data: { weight, reps },
+        data: updateData,
       });
 
       // Clear user's workout cache since data changed
@@ -1410,7 +1463,14 @@ export const resolvers = {
         setNumber,
         weight,
         reps,
-      }: { exerciseId: string; setNumber: number; weight: number; reps: number }
+        equipment,
+      }: {
+        exerciseId: string;
+        setNumber: number;
+        weight: number;
+        reps: number;
+        equipment?: string;
+      }
     ) => {
       // Get the userId from the exercise's session
       const exercise = await prisma.workoutExercise.findUnique({
@@ -1433,6 +1493,7 @@ export const resolvers = {
           setNumber,
           weight,
           reps,
+          equipment: equipment || "dumbbell-both",
         },
       });
 

@@ -20,7 +20,6 @@ const GET_WORKOUT_SESSIONS = gql`
         sessionName
         notes
         createdAt
-        updatedAt
         exercises {
           id
           component
@@ -32,7 +31,6 @@ const GET_WORKOUT_SESSIONS = gql`
           reps
           sets
           createdAt
-          updatedAt
           workoutSets {
             id
             setNumber
@@ -73,7 +71,6 @@ const GET_CATEGORIES = gql`
         color
         description
         createdAt
-        updatedAt
       }
       cache {
         key
@@ -86,12 +83,23 @@ const GET_CATEGORIES = gql`
 `;
 
 const UPDATE_WORKOUT_SET = gql`
-  mutation UpdateWorkoutSet($setId: String!, $weight: Float!, $reps: Int!) {
-    updateWorkoutSet(setId: $setId, weight: $weight, reps: $reps) {
+  mutation UpdateWorkoutSet(
+    $setId: String!
+    $weight: Float!
+    $reps: Int!
+    $equipment: String
+  ) {
+    updateWorkoutSet(
+      setId: $setId
+      weight: $weight
+      reps: $reps
+      equipment: $equipment
+    ) {
       id
       setNumber
       weight
       reps
+      equipment
       createdAt
     }
   }
@@ -103,17 +111,20 @@ const CREATE_WORKOUT_SET = gql`
     $setNumber: Int!
     $weight: Float!
     $reps: Int!
+    $equipment: String
   ) {
     createWorkoutSet(
       exerciseId: $exerciseId
       setNumber: $setNumber
       weight: $weight
       reps: $reps
+      equipment: $equipment
     ) {
       id
       setNumber
       weight
       reps
+      equipment
       createdAt
     }
   }
@@ -138,7 +149,23 @@ const UPDATE_EXERCISE_NAME = gql`
       reps
       sets
       createdAt
-      updatedAt
+    }
+  }
+`;
+
+const UPDATE_EXERCISE_NOTES = gql`
+  mutation UpdateExerciseNotes($exerciseId: String!, $notes: String!) {
+    updateExerciseNotes(exerciseId: $exerciseId, notes: $notes) {
+      id
+      exercise
+      component
+      notes
+      orderInSession
+      isWeightTracked
+      weight
+      reps
+      sets
+      createdAt
     }
   }
 `;
@@ -167,14 +194,12 @@ const SEARCH_EXERCISES = gql`
         reps
         sets
         createdAt
-        updatedAt
         workoutSets {
           id
           setNumber
           weight
           reps
           createdAt
-          updatedAt
         }
         session {
           id
@@ -232,6 +257,14 @@ interface WorkoutExercise {
   createdAt: string;
   updatedAt: string;
   workoutSets: WorkoutSet[];
+  session?: {
+    id: string;
+    date: string;
+    location?: string;
+    workoutType?: string;
+    sessionName?: string;
+    categories?: Category[];
+  };
 }
 
 interface WorkoutSet {
@@ -295,24 +328,32 @@ interface WorkoutDataState {
   fetchWorkouts: (
     limit?: number,
     offset?: number,
-    categoryId?: string
+    categoryId?: string,
+    forceRefresh?: boolean
   ) => Promise<void>;
   fetchCategories: () => Promise<void>;
   fetchSearchResults: (query: string, categoryIds?: string[]) => Promise<void>;
   fetchWorkoutCount: (categoryId?: string) => Promise<void>;
   loadMoreWorkouts: () => Promise<void>;
   setSearchQuery: (query: string) => void;
-  setSelectedCategories: (categoryIds: string[]) => void;
+  setSelectedCategories: (categoryIds: string[]) => Promise<void>;
   clearSearch: () => void;
   removeWorkout: (sessionId: string) => void;
-  updateSet: (setId: string, weight: number, reps: number) => Promise<void>;
+  updateSet: (
+    setId: string,
+    weight: number,
+    reps: number,
+    equipment?: string
+  ) => Promise<void>;
   createSet: (
     exerciseId: string,
     setNumber: number,
     weight: number,
-    reps: number
+    reps: number,
+    equipment?: string
   ) => Promise<void>;
   updateExerciseName: (exerciseId: string, newName: string) => Promise<void>;
+  updateExerciseNotes: (exerciseId: string, notes: string) => Promise<void>;
   deleteSet: (setId: string) => Promise<void>;
   reset: () => void;
 }
@@ -347,22 +388,30 @@ export const useWorkoutDataStore = create<WorkoutDataState>()(
       selectedCategoryIds: [],
 
       // Actions
-      fetchWorkouts: async (limit = 10, offset = 0, categoryId?: string) => {
+      fetchWorkouts: async (
+        limit = 10,
+        offset = 0,
+        categoryId?: string,
+        forceRefresh = false
+      ) => {
         set({ workoutsLoading: true, workoutsError: null });
 
         try {
+          // Use network-only for forced refresh (like after CSV import)
+          const fetchPolicy = forceRefresh ? "network-only" : "cache-first";
+
           // Fetch both workouts and total count
           const [workoutsResult, countResult] = await Promise.all([
             apolloClient.query({
               query: GET_WORKOUT_SESSIONS,
               variables: { limit, offset, categoryId },
-              fetchPolicy: "network-only",
+              fetchPolicy,
               errorPolicy: "all",
             }),
             apolloClient.query({
               query: GET_WORKOUT_SESSIONS_COUNT,
               variables: { categoryId },
-              fetchPolicy: "network-only",
+              fetchPolicy,
               errorPolicy: "all",
             }),
           ]);
@@ -447,13 +496,14 @@ export const useWorkoutDataStore = create<WorkoutDataState>()(
             errorPolicy: "all",
           });
 
-          const exercises = (data as any)?.searchExercises || [];
-          // Note: searchExercises returns array directly, no cache metadata
+          const response = (data as any)?.searchExercises;
+          const exercises = response?.exercises || [];
+          const cacheMetadata = response?.cache;
 
           set({
             searchResults: exercises,
             searchLoading: false,
-            searchCache: null, // searchExercises doesn't return cache metadata
+            searchCache: cacheMetadata,
           });
         } catch (error) {
           console.error("🔍 Store - Error searching:", error);
@@ -546,8 +596,13 @@ export const useWorkoutDataStore = create<WorkoutDataState>()(
         set({ searchQuery: query });
       },
 
-      setSelectedCategories: (categoryIds: string[]) => {
+      setSelectedCategories: async (categoryIds: string[]) => {
         set({ selectedCategoryIds: categoryIds });
+
+        // Refetch workouts with new category filter
+        const categoryId =
+          categoryIds.length === 1 ? categoryIds[0] : undefined;
+        await get().fetchWorkouts(10, 0, categoryId, true);
       },
 
       clearSearch: () => {
@@ -574,12 +629,25 @@ export const useWorkoutDataStore = create<WorkoutDataState>()(
         });
       },
 
-      updateSet: async (setId: string, weight: number, reps: number) => {
+      updateSet: async (
+        setId: string,
+        weight: number,
+        reps: number,
+        equipment?: string
+      ) => {
         try {
+          console.log("🔍 updateSet store - equipment parameter:", equipment);
+          console.log("🔍 updateSet store - variables:", {
+            setId,
+            weight,
+            reps,
+            equipment,
+          });
+
           // Update in database first
           const { data } = await apolloClient.mutate({
             mutation: UPDATE_WORKOUT_SET,
-            variables: { setId, weight, reps },
+            variables: { setId, weight, reps, equipment },
           });
 
           if ((data as any)?.updateWorkoutSet) {
@@ -607,13 +675,14 @@ export const useWorkoutDataStore = create<WorkoutDataState>()(
         exerciseId: string,
         setNumber: number,
         weight: number,
-        reps: number
+        reps: number,
+        equipment?: string
       ) => {
         try {
           // Create in database first
           const { data } = await apolloClient.mutate({
             mutation: CREATE_WORKOUT_SET,
-            variables: { exerciseId, setNumber, weight, reps },
+            variables: { exerciseId, setNumber, weight, reps, equipment },
           });
 
           if ((data as any)?.createWorkoutSet) {
@@ -666,6 +735,34 @@ export const useWorkoutDataStore = create<WorkoutDataState>()(
           }
         } catch (error) {
           console.error("Failed to update exercise name:", error);
+          throw error;
+        }
+      },
+
+      updateExerciseNotes: async (exerciseId: string, notes: string) => {
+        try {
+          // Update in database first
+          const { data } = await apolloClient.mutate({
+            mutation: UPDATE_EXERCISE_NOTES,
+            variables: { exerciseId, notes },
+          });
+
+          if ((data as any)?.updateExerciseNotes) {
+            // Update local store
+            const { workouts } = get();
+            const updatedWorkouts = workouts.map((workout) => ({
+              ...workout,
+              exercises: workout.exercises.map((exercise) =>
+                exercise.id === exerciseId
+                  ? { ...exercise, notes: notes }
+                  : exercise
+              ),
+            }));
+
+            set({ workouts: updatedWorkouts });
+          }
+        } catch (error) {
+          console.error("Failed to update exercise notes:", error);
           throw error;
         }
       },

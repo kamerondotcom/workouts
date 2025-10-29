@@ -39,6 +39,7 @@ export const typeDefs = `#graphql
     setNumber: Int!
     weight: Float!
     reps: Int!
+    equipment: String!
     createdAt: DateTime!
   }
 
@@ -54,6 +55,11 @@ export const typeDefs = `#graphql
 
   type CategoriesResponse {
     categories: [Category!]!
+    cache: CacheMetadata!
+  }
+
+  type SearchExercisesResponse {
+    exercises: [WorkoutExercise!]!
     cache: CacheMetadata!
   }
 
@@ -103,6 +109,7 @@ export const typeDefs = `#graphql
     setNumber: Int!
     weight: Float!
     reps: Int!
+    equipment: String
   }
 
   type Query {
@@ -118,7 +125,7 @@ export const typeDefs = `#graphql
     
     categories: CategoriesResponse!
     category(id: String!): Category
-    searchExercises(searchQuery: String!, categoryIds: [String!], limit: Int, offset: Int): [WorkoutExercise!]!
+    searchExercises(searchQuery: String!, categoryIds: [String!], limit: Int, offset: Int): SearchExercisesResponse!
   }
 
   type Mutation {
@@ -194,8 +201,9 @@ export const typeDefs = `#graphql
     reorderWorkoutExercises(exerciseIds: [String!]!): Boolean!
     updateExerciseComponentName(exerciseId: String!, newName: String!): WorkoutExercise!
     updateExerciseName(exerciseId: String!, newName: String!): WorkoutExercise!
-    updateWorkoutSet(setId: String!, weight: Float!, reps: Int!): WorkoutSet!
-    createWorkoutSet(exerciseId: String!, setNumber: Int!, weight: Float!, reps: Int!): WorkoutSet!
+    updateExerciseNotes(exerciseId: String!, notes: String!): WorkoutExercise!
+    updateWorkoutSet(setId: String!, weight: Float!, reps: Int!, equipment: String): WorkoutSet!
+    createWorkoutSet(exerciseId: String!, setNumber: Int!, weight: Float!, reps: Int!, equipment: String): WorkoutSet!
     deleteWorkoutSet(setId: String!): Int!
     
     createCategory(name: String!, color: String, description: String): Category!

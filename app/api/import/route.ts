@@ -94,9 +94,16 @@ export async function POST(request: NextRequest) {
     parsed.data.forEach((row, index) => {
       const dateStr = row.Date;
       console.log(`Processing row ${index + 1}:`, row);
+      console.log(`Raw date string: "${dateStr}"`);
 
       if (!dateStr || dateStr.trim() === "") {
         console.log(`Skipping row ${index + 1} - no date`);
+        return;
+      }
+
+      // Validate date format
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr.trim())) {
+        console.error(`Invalid date format in row ${index + 1}: "${dateStr}"`);
         return;
       }
 
@@ -140,11 +147,20 @@ export async function POST(request: NextRequest) {
 
       // No automatic category creation - user will add categories manually
 
+      // Parse date string to avoid timezone issues
+      // Create date at noon local time to avoid UTC conversion issues
+      const dateStringWithTime = dateStr + "T12:00:00";
+      console.log(`Creating date object from: "${dateStringWithTime}"`);
+      const dateObj = new Date(dateStringWithTime);
+      console.log(`Created date object:`, dateObj);
+      console.log(`Date object toString:`, dateObj.toString());
+      console.log(`Date object toISOString:`, dateObj.toISOString());
+
       // Check if a session already exists for this date, location, and workout type
       const existingSession = await prisma.workoutSession.findFirst({
         where: {
           userId: authenticatedUser.id,
-          date: new Date(dateStr),
+          date: dateObj,
           location: firstRow.Location,
           workoutType: firstRow["Workout Type"],
         },
@@ -161,7 +177,7 @@ export async function POST(request: NextRequest) {
       const workoutSession = await prisma.workoutSession.create({
         data: {
           userId: authenticatedUser.id,
-          date: new Date(dateStr),
+          date: dateObj,
           location: firstRow.Location,
           workoutType: firstRow["Workout Type"],
           duration: parseIntOrDefault(firstRow["Duration (min)"], 0),

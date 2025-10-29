@@ -25,6 +25,23 @@ export default function CategoryFilterDialog({
 }: CategoryFilterDialogProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
 
+  // Handle escape key to close dialog
+  useEffect(() => {
+    const handleEscapeKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isOpen) {
+        onClose();
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener("keydown", handleEscapeKey);
+    }
+
+    return () => {
+      document.removeEventListener("keydown", handleEscapeKey);
+    };
+  }, [isOpen, onClose]);
+
   // Close dialog when clicking outside - DISABLED FOR NOW
   // useEffect(() => {
   //   function handleClickOutside(event: MouseEvent) {

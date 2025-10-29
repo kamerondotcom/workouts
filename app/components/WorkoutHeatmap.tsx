@@ -113,20 +113,20 @@ export default function WorkoutHeatmap({
 
   return (
     <div
-      className={`bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700 ${className}`}
+      className={`bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700 transition-all duration-300 ${className}`}
     >
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-medium text-gray-900 dark:text-white">
+        <h3 className="text-sm font-medium text-gray-900 dark:text-white transition-colors duration-300">
           Weekly Activity
         </h3>
-        <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+        <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 transition-colors duration-300">
           <span>Less</span>
           <div className="flex gap-1">
-            <div className="w-3 h-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded"></div>
-            <div className="w-3 h-3 bg-green-200 dark:bg-green-800 rounded"></div>
-            <div className="w-3 h-3 bg-green-300 dark:bg-green-700 rounded"></div>
-            <div className="w-3 h-3 bg-green-400 dark:bg-green-600 rounded"></div>
-            <div className="w-3 h-3 bg-green-500 dark:bg-green-500 rounded"></div>
+            <div className="w-3 h-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded transition-colors duration-300"></div>
+            <div className="w-3 h-3 bg-green-200 dark:bg-green-800 rounded transition-colors duration-300"></div>
+            <div className="w-3 h-3 bg-green-300 dark:bg-green-700 rounded transition-colors duration-300"></div>
+            <div className="w-3 h-3 bg-green-400 dark:bg-green-600 rounded transition-colors duration-300"></div>
+            <div className="w-3 h-3 bg-green-500 dark:bg-green-500 rounded transition-colors duration-300"></div>
           </div>
           <span>More</span>
         </div>
@@ -149,7 +149,7 @@ export default function WorkoutHeatmap({
                     ? "ring-1 ring-blue-400 dark:ring-blue-300 shadow-sm border-b-2 border-blue-500 dark:border-blue-400"
                     : ""
                 }
-                transition-all duration-200 hover:scale-105
+                transition-all duration-300 ease-in-out hover:scale-105
               `}
               title={`${
                 dayNames[index]
@@ -157,13 +157,15 @@ export default function WorkoutHeatmap({
                 count !== 1 ? "s" : ""
               }`}
             >
-              {count > 0 && <span className="font-semibold">{count}</span>}
+              <span className="font-semibold transition-all duration-300 ease-in-out">
+                {count > 0 ? count : ""}
+              </span>
             </div>
           );
         })}
       </div>
 
-      <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 text-center">
+      <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 text-center transition-colors duration-300">
         {workoutCounts.reduce((sum, count) => sum + count, 0)} workouts this
         week
       </div>

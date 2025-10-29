@@ -82,6 +82,7 @@ model WorkoutSet {
   setNumber  Int
   weight     Float
   reps       Int
+  equipment  String          @default("dumbbell-both")
   createdAt  DateTime        @default(now())
   updatedAt  DateTime        @updatedAt
   exerciseId String
