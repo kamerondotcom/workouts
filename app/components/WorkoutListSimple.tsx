@@ -748,8 +748,8 @@ export default function WorkoutListSimple({
                   <div className="flex justify-between items-start">
                     <div className="flex-1 cursor-pointer">
                       {/* Header with date and expand icon */}
-                      <div className="flex items-center gap-2 mb-3">
-                        <h3 className="text-xl font-bold text-white">
+                      <div className="flex items-start gap-2 mb-3">
+                        <h3 className="text-lg sm:text-xl font-bold text-white flex-1 min-w-0 break-words">
                           {formatUTCDate(session.date)}
                         </h3>
                         <svg
