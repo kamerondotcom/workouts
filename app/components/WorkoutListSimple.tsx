@@ -338,9 +338,9 @@ export default function WorkoutListSimple({
   const formatUTCDate = (dateString: string) => {
     // Debug logging to see what we're getting
     console.log("formatUTCDate received:", dateString);
-    
+
     // Handle edge cases
-    if (!dateString || typeof dateString !== 'string') {
+    if (!dateString || typeof dateString !== "string") {
       console.error("Invalid dateString:", dateString);
       return "Invalid Date";
     }
@@ -349,16 +349,16 @@ export default function WorkoutListSimple({
     // This avoids timezone conversion issues when displaying dates
     const dateOnly = dateString.split("T")[0]; // Get YYYY-MM-DD part
     console.log("dateOnly extracted:", dateOnly);
-    
+
     // Validate the date format
     if (!dateOnly || !/^\d{4}-\d{2}-\d{2}$/.test(dateOnly)) {
       console.error("Invalid date format:", dateOnly);
       return "Invalid Date Format";
     }
-    
+
     const localDate = new Date(dateOnly + "T12:00:00"); // Use noon to avoid timezone issues
     console.log("localDate created:", localDate);
-    
+
     // Check if the date is valid
     if (isNaN(localDate.getTime())) {
       console.error("Invalid date object created from:", dateOnly);
@@ -371,7 +371,7 @@ export default function WorkoutListSimple({
       month: "long",
       day: "numeric",
     });
-    
+
     console.log("formatted result:", formatted);
     return formatted;
   };
@@ -1491,6 +1491,8 @@ export default function WorkoutListSimple({
                     </option>
                     <option value="kettlebell">Kettlebell</option>
                     <option value="medicineball">Medicine Ball</option>
+                    <option value="slam-ball">Slam Ball</option>
+                    <option value="exercise-bar">Exercise Bar</option>
                   </select>
                 </div>
 
