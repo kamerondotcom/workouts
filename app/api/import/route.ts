@@ -87,17 +87,14 @@ export async function POST(request: NextRequest) {
     // Group by date to create one workout session per date
     const sessionsByDate = new Map<string, any[]>();
 
-    console.log("Parsed data:", parsed.data);
-    console.log("Number of rows:", parsed.data.length);
-    console.log("CSV headers:", Object.keys(parsed.data[0] || {}));
+    
 
     parsed.data.forEach((row, index) => {
       const dateStr = row.Date;
-      console.log(`Processing row ${index + 1}:`, row);
-      console.log(`Raw date string: "${dateStr}"`);
+      
 
       if (!dateStr || dateStr.trim() === "") {
-        console.log(`Skipping row ${index + 1} - no date`);
+        
         return;
       }
 
@@ -113,7 +110,7 @@ export async function POST(request: NextRequest) {
       sessionsByDate.get(dateStr)!.push(row);
     });
 
-    console.log("Sessions by date:", Array.from(sessionsByDate.entries()));
+    
 
     let totalSessions = 0;
     let totalExercises = 0;
@@ -137,24 +134,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log("Import using authenticated user:", authenticatedUser);
+    
 
     // Create one workout session per date with multiple exercises
     for (const [dateStr, rows] of sessionsByDate) {
       const firstRow = rows[0];
-      console.log(`Creating session for date: ${dateStr}`);
-      console.log("First row:", firstRow);
+      
 
       // No automatic category creation - user will add categories manually
 
       // Parse date string to avoid timezone issues
       // Create date at noon local time to avoid UTC conversion issues
       const dateStringWithTime = dateStr + "T12:00:00";
-      console.log(`Creating date object from: "${dateStringWithTime}"`);
       const dateObj = new Date(dateStringWithTime);
-      console.log(`Created date object:`, dateObj);
-      console.log(`Date object toString:`, dateObj.toString());
-      console.log(`Date object toISOString:`, dateObj.toISOString());
+      
 
       // Check if a session already exists for this date, location, and workout type
       const existingSession = await prisma.workoutSession.findFirst({
@@ -167,9 +160,7 @@ export async function POST(request: NextRequest) {
       });
 
       if (existingSession) {
-        console.log(
-          `Session already exists for ${dateStr} at ${firstRow.Location} (${firstRow["Workout Type"]}), skipping...`
-        );
+        
         continue; // Skip this session
       }
 
@@ -190,12 +181,7 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      console.log("Created workout session:", {
-        id: workoutSession.id,
-        date: workoutSession.date,
-        location: workoutSession.location,
-        workoutType: workoutSession.workoutType,
-      });
+      
 
       totalSessions++;
 
@@ -218,7 +204,7 @@ export async function POST(request: NextRequest) {
               orderInSession: i + 1, // Order within the session
             },
           });
-          console.log(`Created exercise: ${exercise} (${component})`);
+          
           totalExercises++;
         } catch (exerciseError) {
           console.error(`Failed to create exercise ${i + 1}:`, exerciseError);
@@ -243,10 +229,7 @@ export async function POST(request: NextRequest) {
         0,
         undefined
       );
-      console.log(
-        "🧹 Cache verification - getUserWorkouts result:",
-        testCache ? "CACHED" : "NULL (good)"
-      );
+      
     } catch (cacheError: any) {
       console.error("⚠️ Failed to clear Redis cache:", cacheError);
       console.error("⚠️ Cache error details:", cacheError.message);

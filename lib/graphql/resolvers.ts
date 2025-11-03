@@ -114,7 +114,7 @@ export const resolvers = {
       const cacheKey = `${context.user.id}:workouts:${limit}:${offset}:${
         categoryId || "all"
       }`;
-      console.log("🔍 Cache key:", cacheKey);
+      
       // Check Redis cache first
       const cachedWorkouts = await redisCache.getUserWorkoutsPaginated(
         context.user.id,
@@ -123,12 +123,7 @@ export const resolvers = {
         categoryId
       );
 
-      console.log(
-        "🔍 Cache check - cachedWorkouts:",
-        cachedWorkouts ? cachedWorkouts.length : "null",
-        "limit:",
-        limit
-      );
+      
 
       if (cachedWorkouts) {
         // Transform cached categories to flattened structure
@@ -165,14 +160,7 @@ export const resolvers = {
       }
 
       // Fetch from database if not in cache
-      console.log(
-        "🔍 DB Query - limit:",
-        limit,
-        "offset:",
-        offset,
-        "userId:",
-        context.user.id
-      );
+      
       const workouts = await prisma.workoutSession.findMany({
         take: limit,
         skip: offset,
@@ -205,12 +193,7 @@ export const resolvers = {
           },
         },
       });
-      console.log(
-        "🔍 DB Result - workouts count:",
-        workouts.length,
-        "limit was:",
-        limit
-      );
+      
 
       // Transform categories to flattened structure
       const transformedWorkouts = workouts.map((workout) => {
@@ -264,12 +247,7 @@ export const resolvers = {
         throw new Error("Authentication required");
       }
 
-      console.log(
-        "workoutSessionsCount called with categoryId:",
-        categoryId,
-        "userId:",
-        context.user.id
-      );
+      
       const whereClause = {
         userId: context.user.id, // Filter by authenticated user
         ...(categoryId && {
@@ -281,7 +259,7 @@ export const resolvers = {
         }),
       };
 
-      console.log("Count where clause:", whereClause);
+      
       const count = await prisma.workoutSession.count({
         where: whereClause,
       });
@@ -395,7 +373,7 @@ export const resolvers = {
           filteredCount: cachedCategories.length,
           returnedCount: cachedCategories.length,
         };
-        console.log("📂 Categories cache HIT:", cacheMetadata);
+        
         return {
           categories: cachedCategories,
           cache: cacheMetadata,
@@ -403,10 +381,6 @@ export const resolvers = {
       }
 
       cacheStatus = "MISS";
-      console.log("📂 Categories cache MISS:", {
-        key: cacheKey,
-        timestamp: new Date().toISOString(),
-      });
 
       // Fetch from database - filter by user
       const categories = await prisma.category.findMany({
@@ -530,11 +504,7 @@ export const resolvers = {
       }
 
       // Debug: Log all exercise names for debugging
-      console.log(
-        "🔍 Search Debug - All exercises:",
-        allExercises.map((e) => e.exercise)
-      );
-      console.log("🔍 Search Debug - Searching for:", searchQuery);
+      
 
       // Filter exercises in memory
       const filteredExercises = allExercises.filter((exercise) => {
@@ -543,10 +513,7 @@ export const resolvers = {
           .toLowerCase()
           .includes(searchQuery.toLowerCase());
 
-        console.log(
-          `🔍 Search Debug - "${exercise.exercise}" matches "${searchQuery}":`,
-          matchesText
-        );
+        
 
         if (!matchesText) return false;
 
@@ -574,15 +541,7 @@ export const resolvers = {
       const transformedResults = paginatedResults;
 
       // Debug final results
-      console.log(
-        "🔍 Final search results:",
-        transformedResults.map((ex) => ({
-          id: ex.id,
-          exercise: ex.exercise,
-          sessionId: ex.sessionId,
-          categories: ex.session?.categories,
-        }))
-      );
+      
 
       // Add cache metadata to the response
       const cacheMetadata = {
@@ -662,7 +621,7 @@ export const resolvers = {
 
       // Clear user-specific categories cache
       await redisCache.delete(`${context.user.id}:categories:all`);
-      console.log("📂 User categories cache cleared after create");
+      
 
       return category;
     },
@@ -707,7 +666,7 @@ export const resolvers = {
 
       // Clear user-specific categories cache
       await redisCache.delete(`${context.user.id}:categories:all`);
-      console.log("📂 User categories cache cleared after update");
+      
 
       return category;
     },
@@ -737,7 +696,7 @@ export const resolvers = {
 
       // Clear user-specific categories cache
       await redisCache.delete(`${context.user.id}:categories:all`);
-      console.log("📂 User categories cache cleared after delete");
+      
 
       return category;
     },
@@ -1408,8 +1367,7 @@ export const resolvers = {
         updateData.equipment = equipment;
       }
 
-      console.log("🔍 updateWorkoutSet - equipment parameter:", equipment);
-      console.log("🔍 updateWorkoutSet - updateData:", updateData);
+      
 
       const updatedSet = await prisma.workoutSet.update({
         where: { id: setId },

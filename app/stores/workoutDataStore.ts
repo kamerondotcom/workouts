@@ -639,13 +639,6 @@ export const useWorkoutDataStore = create<WorkoutDataState>()(
         equipment?: string
       ) => {
         try {
-          console.log("🔍 updateSet store - equipment parameter:", equipment);
-          console.log("🔍 updateSet store - variables:", {
-            setId,
-            weight,
-            reps,
-            equipment,
-          });
 
           // Update in database first
           const { data } = await apolloClient.mutate({

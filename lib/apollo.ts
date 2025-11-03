@@ -14,14 +14,6 @@ const authLink = setContext((_, { headers }) => {
   const token =
     typeof window !== "undefined" ? localStorage.getItem("workoutToken") : null;
 
-  console.log(
-    "🔑 Apollo Client - Token from localStorage:",
-    token ? "exists" : "missing"
-  );
-  console.log(
-    "🔑 Apollo Client - Authorization header:",
-    token ? `Bearer ${token.substring(0, 20)}...` : "none"
-  );
 
   // Return the headers to the context so httpLink can read them
   return {

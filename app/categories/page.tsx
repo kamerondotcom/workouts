@@ -16,7 +16,6 @@ export default function CategoriesPage() {
   // Initialize categories when user is authenticated
   useEffect(() => {
     if (isAuthenticated && !isLoading) {
-      console.log("🏷️ Categories page - Initializing categories...");
       fetchCategories();
     }
   }, [isAuthenticated, isLoading, fetchCategories]);

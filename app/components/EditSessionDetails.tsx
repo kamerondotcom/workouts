@@ -218,9 +218,6 @@ export default function EditSessionDetails({
           navigator.serviceWorker.controller.postMessage({
             type: "CLEAR_CACHE",
           });
-          console.log(
-            "Service Worker cache clear requested after workout update"
-          );
         }
       },
     }
@@ -229,11 +226,7 @@ export default function EditSessionDetails({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    console.log("Updating workout datetime:", {
-      workoutId,
-      newDate: sessionDate,
-      newTime: sessionTime,
-    });
+    
 
     try {
       const result = await updateWorkoutDateTime({
@@ -245,8 +238,7 @@ export default function EditSessionDetails({
           workoutType: sessionWorkoutType,
         },
       });
-
-      console.log("Update result:", result);
+      
       // Add a small delay to ensure the database update has completed
       setTimeout(() => {
         onUpdate();

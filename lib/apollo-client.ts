@@ -11,15 +11,6 @@ const createApolloClient = () => {
   const authLink = setContext((_, { headers }) => {
     // Get the token from localStorage
     const token = localStorage.getItem("workoutToken");
-    console.log(
-      "Apollo Client: token from localStorage:",
-      token ? token.substring(0, 20) + "..." : "null"
-    );
-    console.log("Apollo Client: Full token:", token);
-    console.log("Apollo Client: Headers being sent:", {
-      ...headers,
-      authorization: token ? `Bearer ${token}` : "",
-    });
 
     return {
       headers: {

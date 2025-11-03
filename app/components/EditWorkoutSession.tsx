@@ -80,9 +80,6 @@ export default function EditWorkoutSession({
           navigator.serviceWorker.controller.postMessage({
             type: "CLEAR_CACHE",
           });
-          console.log(
-            "Service Worker cache clear requested after category update"
-          );
         }
       },
     }

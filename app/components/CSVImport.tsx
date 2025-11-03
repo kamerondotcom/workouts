@@ -52,12 +52,10 @@ export default function CSVImport({
           navigator.serviceWorker.controller.postMessage({
             type: "CLEAR_CACHE",
           });
-          console.log("Service Worker cache clear requested after CSV import");
         }
 
         // Callback to refresh data
         if (onImportComplete) {
-          console.log("Calling onImportComplete callback");
           onImportComplete();
         }
 
@@ -75,10 +73,10 @@ export default function CSVImport({
           });
           if (clearResponse.ok) {
           } else {
-            console.log("⚠️ Failed to clear Redis cache via API");
+            // Optional: handle cache clear failure silently
           }
         } catch (clearError) {
-          console.log("⚠️ Error clearing Redis cache:", clearError);
+          // Optional: handle cache clear error silently
         }
       } else {
         await alert({

@@ -126,7 +126,6 @@ export default function WorkoutListSimple({
   // Listen for CSV import completion events
   useEffect(() => {
     const handleImportComplete = () => {
-      console.log("🔄 CSV import detected, refreshing workout data...");
       // Force refresh with network-only to bypass cache
       fetchWorkouts(10, 0, undefined, true);
       fetchWorkoutCount();
@@ -134,9 +133,6 @@ export default function WorkoutListSimple({
 
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === "workout-import-trigger") {
-        console.log(
-          "🔄 Import trigger detected in localStorage, refreshing..."
-        );
         handleImportComplete();
       }
     };
@@ -150,7 +146,6 @@ export default function WorkoutListSimple({
     // Check for existing import trigger on mount
     const importTrigger = localStorage.getItem("workout-import-trigger");
     if (importTrigger) {
-      console.log("🔄 Found existing import trigger, refreshing...");
       handleImportComplete();
       localStorage.removeItem("workout-import-trigger");
     }
@@ -336,9 +331,6 @@ export default function WorkoutListSimple({
 
   // Format date helper - handles timezone issues properly
   const formatUTCDate = (dateString: string) => {
-    // Debug logging to see what we're getting
-    console.log("formatUTCDate received:", dateString);
-
     // Handle edge cases
     if (!dateString || typeof dateString !== "string") {
       console.error("Invalid dateString:", dateString);
@@ -348,7 +340,6 @@ export default function WorkoutListSimple({
     // Extract just the date part (YYYY-MM-DD) and create a new date in local timezone
     // This avoids timezone conversion issues when displaying dates
     const dateOnly = dateString.split("T")[0]; // Get YYYY-MM-DD part
-    console.log("dateOnly extracted:", dateOnly);
 
     // Validate the date format
     if (!dateOnly || !/^\d{4}-\d{2}-\d{2}$/.test(dateOnly)) {
@@ -357,7 +348,6 @@ export default function WorkoutListSimple({
     }
 
     const localDate = new Date(dateOnly + "T12:00:00"); // Use noon to avoid timezone issues
-    console.log("localDate created:", localDate);
 
     // Check if the date is valid
     if (isNaN(localDate.getTime())) {
@@ -372,7 +362,6 @@ export default function WorkoutListSimple({
       day: "numeric",
     });
 
-    console.log("formatted result:", formatted);
     return formatted;
   };
 
@@ -611,11 +600,7 @@ export default function WorkoutListSimple({
                                   exercise.session.date
                                 ).toLocaleDateString()}
                               </span>
-                              {/* Debug: Show raw data */}
-                              <div className="text-xs text-red-500 mt-1">
-                                DEBUG: Categories ={" "}
-                                {JSON.stringify(exercise.session.categories)}
-                              </div>
+
                               {exercise.session.categories &&
                               exercise.session.categories.length > 0 ? (
                                 <>
@@ -971,7 +956,6 @@ export default function WorkoutListSimple({
 
                             // Remove workout from store - UI will update automatically
                             removeWorkout(session.id);
-                            console.log("Session deleted successfully");
                           } catch (error) {
                             console.error(
                               "Failed to delete workout session:",

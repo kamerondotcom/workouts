@@ -19,11 +19,6 @@ export function useIntersectionObserver(
 
     const observer = new IntersectionObserver(
       ([entry]) => {
-        console.log("🔍 Intersection Observer:", {
-          isIntersecting: entry.isIntersecting,
-          intersectionRatio: entry.intersectionRatio,
-          boundingClientRect: entry.boundingClientRect,
-        });
         setIsIntersecting(entry.isIntersecting);
       },
       {
