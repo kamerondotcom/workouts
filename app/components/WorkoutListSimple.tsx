@@ -8,6 +8,7 @@ import EditSessionDetails from "./EditSessionDetails";
 import EditWorkoutSession from "./EditWorkoutSession";
 import WorkoutHeatmap from "./WorkoutHeatmap";
 import CategoryFilterDialog from "./CategoryFilterDialog";
+import AddWorkoutSession from "./AddWorkoutSession";
 import { useMutation } from "@apollo/client/react";
 import { gql } from "@apollo/client";
 import { useModal } from "../services/modalService";
@@ -102,6 +103,9 @@ export default function WorkoutListSimple({
 
   // Filter dialog state
   const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false);
+
+  // Add workout session dialog state
+  const [isAddSessionDialogOpen, setIsAddSessionDialogOpen] = useState(false);
 
   // Track previously seen workout IDs to identify new ones
   const [previousWorkoutIds, setPreviousWorkoutIds] = useState<Set<string>>(
@@ -462,29 +466,50 @@ export default function WorkoutListSimple({
       {/* Workout Heatmap */}
       <WorkoutHeatmap className="mb-6" />
 
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
           Your Workouts ({totalWorkouts})
         </h2>
-        <button
-          onClick={() => setIsFilterDialogOpen(true)}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-        >
-          <svg
-            className="w-4 h-4"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setIsAddSessionDialogOpen(true)}
+            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
-            />
-          </svg>
-          Filters
-        </button>
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 4v16m8-8H4"
+              />
+            </svg>
+            Add Session
+          </button>
+          <button
+            onClick={() => setIsFilterDialogOpen(true)}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+          >
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
+              />
+            </svg>
+            Filters
+          </button>
+        </div>
       </div>
 
       {/* Search Bar */}
@@ -1730,6 +1755,16 @@ export default function WorkoutListSimple({
         onCategoryChange={setSelectedCategories}
         isOpen={isFilterDialogOpen}
         onClose={() => setIsFilterDialogOpen(false)}
+      />
+
+      {/* Add Workout Session Dialog */}
+      <AddWorkoutSession
+        isOpen={isAddSessionDialogOpen}
+        onClose={() => setIsAddSessionDialogOpen(false)}
+        onSuccess={() => {
+          // Refresh workout list after successful creation
+          fetchWorkouts(10, 0, undefined, true);
+        }}
       />
     </div>
   );
