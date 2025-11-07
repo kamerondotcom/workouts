@@ -1,6 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  useMemo,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import { useWorkoutDataStore } from "../stores/workoutDataStore";
 import { useUser } from "../contexts/UserContext";
 import WorkoutSkeleton from "./WorkoutSkeleton";
@@ -12,6 +19,22 @@ import AddWorkoutSession from "./AddWorkoutSession";
 import { useMutation } from "@apollo/client/react";
 import { gql } from "@apollo/client";
 import { useModal } from "../services/modalService";
+
+const LONG_PRESS_DUPLICATE_DELAY = 500;
+
+type WorkoutSetSummary = {
+  id: string;
+  setNumber: number;
+  weight?: number | null;
+  reps?: number | null;
+  equipment?: string | null;
+};
+
+type ExerciseWithSets = {
+  id: string;
+  exercise: string;
+  workoutSets: WorkoutSetSummary[];
+};
 
 // GraphQL Mutations
 const DELETE_WORKOUT_SESSION = gql`
@@ -96,6 +119,11 @@ export default function WorkoutListSimple({
     notes: string;
   } | null>(null);
   const [savingNotes, setSavingNotes] = useState(false);
+  const [duplicatingSetId, setDuplicatingSetId] = useState<string | null>(null);
+  const longPressTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const longPressTriggeredRef = useRef(false);
+  const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
+  const duplicationInProgressRef = useRef<string | null>(null);
 
   // Focus trap refs
   const notesModalRef = useRef<HTMLDivElement>(null);
@@ -390,6 +418,127 @@ export default function WorkoutListSimple({
       setOverlayDismissTimer(null);
     }
   }, [overlayDismissTimer]);
+
+  const clearLongPressTimer = useCallback(() => {
+    if (longPressTimeoutRef.current) {
+      clearTimeout(longPressTimeoutRef.current);
+      longPressTimeoutRef.current = null;
+    }
+  }, []);
+
+  const handleDuplicateSet = useCallback(
+    async (exercise: ExerciseWithSets, baseSet: WorkoutSetSummary) => {
+      if (!exercise || !baseSet) return;
+      if (duplicationInProgressRef.current) return;
+
+      duplicationInProgressRef.current = baseSet.id;
+      setDuplicatingSetId(baseSet.id);
+
+      try {
+        const existingNumbers =
+          exercise.workoutSets?.map((s) => s.setNumber) ?? [];
+        const highestSetNumber =
+          existingNumbers.length > 0
+            ? Math.max(...existingNumbers)
+            : baseSet.setNumber;
+        const nextSetNumber = highestSetNumber + 1;
+
+        await createSet(
+          exercise.id,
+          nextSetNumber,
+          baseSet.weight ?? 0,
+          baseSet.reps ?? 0,
+          baseSet.equipment || "dumbbell-both"
+        );
+
+        const { workouts: latestWorkouts } = useWorkoutDataStore.getState();
+        const updatedExercise = latestWorkouts
+          .flatMap(
+            (workout: { exercises: ExerciseWithSets[] }) => workout.exercises
+          )
+          .find((ex) => ex.id === exercise.id);
+
+        if (
+          updatedExercise &&
+          updatedExercise.workoutSets &&
+          updatedExercise.workoutSets.length > 0
+        ) {
+          const newSet =
+            updatedExercise.workoutSets[updatedExercise.workoutSets.length - 1];
+
+          setEditingSet({
+            setId: newSet.id,
+            setNumber: newSet.setNumber,
+            weight: newSet.weight || 0,
+            reps: newSet.reps || 0,
+            exerciseName: updatedExercise.exercise,
+            equipment: newSet.equipment || "dumbbell-both",
+          });
+        }
+      } catch (error) {
+        console.error("Failed to duplicate workout set:", error);
+      } finally {
+        duplicationInProgressRef.current = null;
+        setDuplicatingSetId(null);
+      }
+    },
+    [createSet]
+  );
+
+  const handleSetPointerDown = useCallback(
+    (
+      event: ReactPointerEvent<HTMLDivElement>,
+      exercise: ExerciseWithSets,
+      baseSet: WorkoutSetSummary
+    ) => {
+      if (event.button !== 0) {
+        return;
+      }
+
+      pointerStartRef.current = { x: event.clientX, y: event.clientY };
+      clearLongPressTimer();
+      longPressTriggeredRef.current = false;
+
+      longPressTimeoutRef.current = setTimeout(() => {
+        longPressTriggeredRef.current = true;
+        clearLongPressTimer();
+        void handleDuplicateSet(exercise, baseSet);
+      }, LONG_PRESS_DUPLICATE_DELAY);
+    },
+    [clearLongPressTimer, handleDuplicateSet]
+  );
+
+  const handleSetPointerMove = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (!pointerStartRef.current || !longPressTimeoutRef.current) return;
+
+      const deltaX = Math.abs(event.clientX - pointerStartRef.current.x);
+      const deltaY = Math.abs(event.clientY - pointerStartRef.current.y);
+
+      if (deltaX > 10 || deltaY > 10) {
+        clearLongPressTimer();
+      }
+    },
+    [clearLongPressTimer]
+  );
+
+  const handleSetPointerEnd = useCallback(() => {
+    clearLongPressTimer();
+    pointerStartRef.current = null;
+    if (longPressTriggeredRef.current) {
+      setTimeout(() => {
+        longPressTriggeredRef.current = false;
+      }, 0);
+    } else {
+      longPressTriggeredRef.current = false;
+    }
+  }, [clearLongPressTimer]);
+
+  useEffect(() => {
+    return () => {
+      clearLongPressTimer();
+    };
+  }, [clearLongPressTimer]);
 
   // Close overlay on escape key or click outside
   useEffect(() => {
@@ -734,7 +883,30 @@ export default function WorkoutListSimple({
 
             const cardStyle = primaryCategory
               ? { backgroundColor: primaryCategory.color }
-              : { background: "linear-gradient(to right, #3B82F6, #8B5CF6)" }; // fallback gradient
+              : {
+                  background:
+                    "linear-gradient(to right, rgba(249,250,251,0.95), rgba(243,244,246,0.95))",
+                }; // subtle off-white fallback gradient
+
+            const isCategorized = Boolean(primaryCategory);
+            const headingTextClass = isCategorized
+              ? "text-white"
+              : "text-gray-900";
+            const caretTextClass = isCategorized
+              ? "text-white"
+              : "text-gray-500";
+            const locationTextClass = isCategorized
+              ? "text-white/90"
+              : "text-gray-700";
+            const workoutTypeTextClass = isCategorized
+              ? "text-white/90"
+              : "text-gray-600";
+            const metricIconClass = isCategorized
+              ? "text-white/70"
+              : "text-gray-500";
+            const metricTextClass = isCategorized
+              ? "text-white/70"
+              : "text-gray-600";
 
             return (
               <div
@@ -759,11 +931,13 @@ export default function WorkoutListSimple({
                     <div className="flex-1 cursor-pointer">
                       {/* Header with date and expand icon */}
                       <div className="flex items-start gap-2 mb-3">
-                        <h3 className="text-lg sm:text-xl font-bold text-white flex-1 min-w-0 break-words">
+                        <h3
+                          className={`text-lg sm:text-xl font-bold ${headingTextClass} flex-1 min-w-0 break-words`}
+                        >
                           {formatUTCDate(session.date)}
                         </h3>
                         <svg
-                          className={`w-5 h-5 transition-transform text-white ${
+                          className={`w-5 h-5 transition-transform ${caretTextClass} ${
                             isCollapsed ? "-rotate-90" : ""
                           }`}
                           fill="none"
@@ -783,10 +957,10 @@ export default function WorkoutListSimple({
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {/* Left column - Location and workout type */}
                         <div className="space-y-2">
-                          <p className="text-white/90 font-medium">
+                          <p className={`${locationTextClass} font-medium`}>
                             {session.location}
                           </p>
-                          <p className="text-white/90 text-sm">
+                          <p className={`${workoutTypeTextClass} text-sm`}>
                             {session.workoutType}
                           </p>
                         </div>
@@ -795,27 +969,29 @@ export default function WorkoutListSimple({
                         <div className="space-y-2">
                           <div className="flex items-center gap-4">
                             <div className="flex items-center gap-1">
-                              <span className="text-white/70 text-sm">⏱️</span>
-                              <span className="text-white/70 text-sm">
+                              <span className={`${metricIconClass} text-sm`}>
+                                ⏱️
+                              </span>
+                              <span className={`${metricTextClass} text-sm`}>
                                 {session.duration} min
                               </span>
                             </div>
                             {session.avgHeartRate && (
                               <div className="flex items-center gap-1">
-                                <span className="text-white/70 text-sm">
+                                <span className={`${metricIconClass} text-sm`}>
                                   ❤️
                                 </span>
-                                <span className="text-white/70 text-sm">
+                                <span className={`${metricTextClass} text-sm`}>
                                   {session.avgHeartRate} bpm
                                 </span>
                               </div>
                             )}
                             {session.effort && (
                               <div className="flex items-center gap-1">
-                                <span className="text-white/70 text-sm">
+                                <span className={`${metricIconClass} text-sm`}>
                                   💪
                                 </span>
-                                <span className="text-white/70 text-sm">
+                                <span className={`${metricTextClass} text-sm`}>
                                   {session.effort}
                                 </span>
                               </div>
@@ -1014,234 +1190,103 @@ export default function WorkoutListSimple({
                   <div className="bg-white dark:bg-gray-800 p-6 border-t border-gray-200 dark:border-gray-700">
                     <div className="space-y-6">
                       {session.exercises && session.exercises.length > 0 ? (
-                        session.exercises.map((exercise, exerciseIndex) => (
-                          <div
-                            key={exercise.id}
-                            className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-600 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-600"
-                          >
-                            {/* Exercise Header */}
-                            <div className="mb-6">
-                              {/* Exercise Name */}
-                              <div className="mb-3">
-                                {editingExercise?.exerciseId === exercise.id ? (
-                                  <input
-                                    type="text"
-                                    value={editingExercise.exerciseName}
-                                    onChange={(e) =>
-                                      setEditingExercise({
-                                        ...editingExercise,
-                                        exerciseName: e.target.value,
-                                      })
-                                    }
-                                    onBlur={async () => {
-                                      if (editingExercise) {
-                                        try {
-                                          await updateExerciseName(
-                                            editingExercise.exerciseId,
-                                            editingExercise.exerciseName
-                                          );
-                                          setEditingExercise(null);
-                                        } catch (error) {
-                                          console.error(
-                                            "Failed to update exercise name:",
-                                            error
-                                          );
-                                          setEditingExercise(null);
-                                        }
-                                      }
-                                    }}
-                                    onKeyDown={async (e) => {
-                                      if (
-                                        e.key === "Enter" &&
-                                        editingExercise
-                                      ) {
-                                        try {
-                                          await updateExerciseName(
-                                            editingExercise.exerciseId,
-                                            editingExercise.exerciseName
-                                          );
-                                          setEditingExercise(null);
-                                        } catch (error) {
-                                          console.error(
-                                            "Failed to update exercise name:",
-                                            error
-                                          );
-                                          setEditingExercise(null);
-                                        }
-                                      } else if (e.key === "Escape") {
-                                        setEditingExercise(null);
-                                      }
-                                    }}
-                                    className="text-xl font-bold text-gray-900 dark:text-white bg-gray-50 dark:bg-gray-700 focus:outline-none w-full transition-all duration-200 ease-in-out border-b-2 border-blue-500"
-                                    autoFocus
-                                  />
-                                ) : (
-                                  <h3
-                                    className="text-xl font-bold text-gray-900 dark:text-white cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors border-b-2 border-transparent"
-                                    onDoubleClick={() =>
-                                      setEditingExercise({
-                                        exerciseId: exercise.id,
-                                        exerciseName: exercise.exercise,
-                                      })
-                                    }
-                                  >
-                                    {exercise.exercise}
-                                  </h3>
-                                )}
-                              </div>
-
-                              {/* Exercise Details */}
-                              <div className="space-y-3">
-                                {/* Component - Small and Subtle */}
-                                {exercise.component && (
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
-                                      Component:
-                                    </span>
-                                    <span className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-2 py-1 rounded-full">
-                                      {exercise.component}
-                                    </span>
-                                  </div>
-                                )}
-
-                                {/* Notes */}
-                                <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 border border-blue-200 dark:border-blue-800">
-                                  <div className="flex items-start gap-3">
-                                    <div className="w-8 h-8 bg-blue-100 dark:bg-blue-800/30 rounded-lg flex items-center justify-center flex-shrink-0">
-                                      <svg
-                                        className="w-4 h-4 text-blue-600 dark:text-blue-400"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        viewBox="0 0 24 24"
-                                      >
-                                        <path
-                                          strokeLinecap="round"
-                                          strokeLinejoin="round"
-                                          strokeWidth={2}
-                                          d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"
-                                        />
-                                      </svg>
-                                    </div>
-                                    <div>
-                                      <div className="text-xs font-medium text-blue-600 dark:text-blue-400 uppercase tracking-wide">
-                                        Notes
-                                      </div>
-                                      <div className="text-sm text-blue-800 dark:text-blue-200 leading-relaxed">
-                                        {exercise.notes ? (
-                                          <button
-                                            onClick={() =>
-                                              setEditingNotes({
-                                                exerciseId: exercise.id,
-                                                notes: exercise.notes || "",
-                                              })
-                                            }
-                                            className="text-left w-full cursor-pointer hover:underline"
-                                          >
-                                            {exercise.notes}
-                                          </button>
-                                        ) : (
-                                          <button
-                                            onClick={() =>
-                                              setEditingNotes({
-                                                exerciseId: exercise.id,
-                                                notes: "",
-                                              })
-                                            }
-                                            className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
-                                          >
-                                            <svg
-                                              className="w-3 h-3"
-                                              fill="none"
-                                              stroke="currentColor"
-                                              viewBox="0 0 24 24"
-                                            >
-                                              <path
-                                                strokeLinecap="round"
-                                                strokeLinejoin="round"
-                                                strokeWidth={2}
-                                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                                              />
-                                            </svg>
-                                            Add notes
-                                          </button>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Workout Sets - Enhanced Design */}
-                            <div>
-                              <div className="flex items-center gap-2 mb-3">
-                                <h5 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                                  📊 Set Details
-                                </h5>
-                                <div className="flex-1 h-px bg-gray-300 dark:bg-gray-600"></div>
-                              </div>
-
-                              {exercise.workoutSets &&
-                              exercise.workoutSets.length > 0 ? (
-                                <div
-                                  className="flex gap-3 overflow-x-auto pb-2 [&::-webkit-scrollbar]:hidden"
-                                  style={{
-                                    scrollbarWidth: "none",
-                                    msOverflowStyle: "none",
-                                  }}
-                                >
-                                  {exercise.workoutSets.map((set, setIndex) => (
-                                    <div
-                                      key={set.id}
-                                      onClick={() =>
-                                        setEditingSet({
-                                          setId: set.id,
-                                          setNumber: set.setNumber,
-                                          weight: set.weight || 0,
-                                          reps: set.reps || 0,
-                                          exerciseName: exercise.exercise,
-                                          equipment:
-                                            set.equipment || "dumbbell-both",
+                        session.exercises.map((exercise, exerciseIndex) => {
+                          const exerciseWithSets = exercise as ExerciseWithSets;
+                          return (
+                            <div
+                              key={exercise.id}
+                              className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-600 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-600"
+                            >
+                              {/* Exercise Header */}
+                              <div className="mb-6">
+                                {/* Exercise Name */}
+                                <div className="mb-3">
+                                  {editingExercise?.exerciseId ===
+                                  exercise.id ? (
+                                    <input
+                                      type="text"
+                                      value={editingExercise.exerciseName}
+                                      onChange={(e) =>
+                                        setEditingExercise({
+                                          ...editingExercise,
+                                          exerciseName: e.target.value,
                                         })
                                       }
-                                      className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm border border-gray-200 dark:border-gray-600 hover:shadow-md hover:border-blue-300 dark:hover:border-blue-600 transition-all cursor-pointer flex-shrink-0 min-w-[140px]"
+                                      onBlur={async () => {
+                                        if (editingExercise) {
+                                          try {
+                                            await updateExerciseName(
+                                              editingExercise.exerciseId,
+                                              editingExercise.exerciseName
+                                            );
+                                            setEditingExercise(null);
+                                          } catch (error) {
+                                            console.error(
+                                              "Failed to update exercise name:",
+                                              error
+                                            );
+                                            setEditingExercise(null);
+                                          }
+                                        }
+                                      }}
+                                      onKeyDown={async (e) => {
+                                        if (
+                                          e.key === "Enter" &&
+                                          editingExercise
+                                        ) {
+                                          try {
+                                            await updateExerciseName(
+                                              editingExercise.exerciseId,
+                                              editingExercise.exerciseName
+                                            );
+                                            setEditingExercise(null);
+                                          } catch (error) {
+                                            console.error(
+                                              "Failed to update exercise name:",
+                                              error
+                                            );
+                                            setEditingExercise(null);
+                                          }
+                                        } else if (e.key === "Escape") {
+                                          setEditingExercise(null);
+                                        }
+                                      }}
+                                      className="text-xl font-bold text-gray-900 dark:text-white bg-gray-50 dark:bg-gray-700 focus:outline-none w-full transition-all duration-200 ease-in-out border-b-2 border-blue-500"
+                                      autoFocus
+                                    />
+                                  ) : (
+                                    <h3
+                                      className="text-xl font-bold text-gray-900 dark:text-white cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors border-b-2 border-transparent"
+                                      onDoubleClick={() =>
+                                        setEditingExercise({
+                                          exerciseId: exercise.id,
+                                          exerciseName: exercise.exercise,
+                                        })
+                                      }
                                     >
-                                      <div className="text-center">
-                                        <div className="w-8 h-8 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-2">
-                                          <span className="text-gray-700 dark:text-gray-300 font-semibold text-sm">
-                                            {set.setNumber}
-                                          </span>
-                                        </div>
-                                        <div className="space-y-1">
-                                          <div className="text-lg font-bold text-gray-900 dark:text-white">
-                                            {set.weight} lbs
-                                          </div>
-                                          <div className="text-sm text-gray-600 dark:text-gray-400">
-                                            × {set.reps} reps
-                                          </div>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  ))}
+                                      {exercise.exercise}
+                                    </h3>
+                                  )}
+                                </div>
 
-                                  {/* Add Set Card */}
-                                  <div
-                                    onClick={() => {
-                                      // Open modal to add new set
-                                      setEditingSet({
-                                        setId: "new", // Special ID for new sets
-                                        setNumber:
-                                          exercise.workoutSets.length + 1,
-                                        weight: 0,
-                                        reps: 0,
-                                        exerciseName: exercise.exercise,
-                                        equipment: "dumbbell-both",
-                                      });
-                                    }}
-                                    className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm border-2 border-dashed border-blue-300 dark:border-blue-600 hover:border-blue-400 dark:hover:border-blue-500 hover:shadow-md transition-all cursor-pointer flex-shrink-0 min-w-[140px]"
-                                  >
-                                    <div className="text-center">
-                                      <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mx-auto mb-2">
+                                {/* Exercise Details */}
+                                <div className="space-y-3">
+                                  {/* Component - Small and Subtle */}
+                                  {exercise.component && (
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
+                                        Component:
+                                      </span>
+                                      <span className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-2 py-1 rounded-full">
+                                        {exercise.component}
+                                      </span>
+                                    </div>
+                                  )}
+
+                                  {/* Notes */}
+                                  <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 border border-blue-200 dark:border-blue-800">
+                                    <div className="flex items-start gap-3">
+                                      <div className="w-8 h-8 bg-blue-100 dark:bg-blue-800/30 rounded-lg flex items-center justify-center flex-shrink-0">
                                         <svg
                                           className="w-4 h-4 text-blue-600 dark:text-blue-400"
                                           fill="none"
@@ -1252,62 +1297,235 @@ export default function WorkoutListSimple({
                                             strokeLinecap="round"
                                             strokeLinejoin="round"
                                             strokeWidth={2}
-                                            d="M12 4v16m8-8H4"
+                                            d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"
                                           />
                                         </svg>
                                       </div>
-                                      <div className="space-y-1">
-                                        <div className="text-sm font-medium text-blue-600 dark:text-blue-400">
-                                          Add Set
+                                      <div>
+                                        <div className="text-xs font-medium text-blue-600 dark:text-blue-400 uppercase tracking-wide">
+                                          Notes
                                         </div>
-                                        <div className="text-xs text-gray-500 dark:text-gray-400">
-                                          Click to add
+                                        <div className="text-sm text-blue-800 dark:text-blue-200 leading-relaxed">
+                                          {exercise.notes ? (
+                                            <button
+                                              onClick={() =>
+                                                setEditingNotes({
+                                                  exerciseId: exercise.id,
+                                                  notes: exercise.notes || "",
+                                                })
+                                              }
+                                              className="text-left w-full cursor-pointer hover:underline"
+                                            >
+                                              {exercise.notes}
+                                            </button>
+                                          ) : (
+                                            <button
+                                              onClick={() =>
+                                                setEditingNotes({
+                                                  exerciseId: exercise.id,
+                                                  notes: "",
+                                                })
+                                              }
+                                              className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
+                                            >
+                                              <svg
+                                                className="w-3 h-3"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                viewBox="0 0 24 24"
+                                              >
+                                                <path
+                                                  strokeLinecap="round"
+                                                  strokeLinejoin="round"
+                                                  strokeWidth={2}
+                                                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                                                />
+                                              </svg>
+                                              Add notes
+                                            </button>
+                                          )}
                                         </div>
                                       </div>
                                     </div>
                                   </div>
                                 </div>
-                              ) : (
-                                <div className="text-center py-6">
-                                  <div className="text-gray-500 dark:text-gray-400 mb-3">
-                                    <p className="text-sm">
-                                      No sets recorded yet
-                                    </p>
-                                  </div>
-                                  <button
-                                    onClick={() => {
-                                      // Open modal to add first set
-                                      setEditingSet({
-                                        setId: "new", // Special ID for new sets
-                                        setNumber: 1,
-                                        weight: 0,
-                                        reps: 0,
-                                        exerciseName: exercise.exercise,
-                                        equipment: "dumbbell-both",
-                                      });
-                                    }}
-                                    className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 mx-auto"
-                                  >
-                                    <svg
-                                      className="w-4 h-4"
-                                      fill="none"
-                                      stroke="currentColor"
-                                      viewBox="0 0 24 24"
-                                    >
-                                      <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth={2}
-                                        d="M12 4v16m8-8H4"
-                                      />
-                                    </svg>
-                                    Add First Set
-                                  </button>
+                              </div>
+
+                              {/* Workout Sets - Enhanced Design */}
+                              <div>
+                                <div className="flex items-center gap-2 mb-3">
+                                  <h5 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                                    📊 Set Details
+                                  </h5>
+                                  <div className="flex-1 h-px bg-gray-300 dark:bg-gray-600"></div>
                                 </div>
-                              )}
+
+                                {exerciseWithSets.workoutSets &&
+                                exerciseWithSets.workoutSets.length > 0 ? (
+                                  <div
+                                    className="flex gap-3 overflow-x-auto pb-2 [&::-webkit-scrollbar]:hidden"
+                                    style={{
+                                      scrollbarWidth: "none",
+                                      msOverflowStyle: "none",
+                                    }}
+                                  >
+                                    {exerciseWithSets.workoutSets.map(
+                                      (set, setIndex) => (
+                                        <div
+                                          key={set.id}
+                                          onClick={() => {
+                                            if (longPressTriggeredRef.current) {
+                                              longPressTriggeredRef.current =
+                                                false;
+                                              return;
+                                            }
+                                            setEditingSet({
+                                              setId: set.id,
+                                              setNumber: set.setNumber,
+                                              weight: set.weight || 0,
+                                              reps: set.reps || 0,
+                                              exerciseName: exercise.exercise,
+                                              equipment:
+                                                set.equipment ||
+                                                "dumbbell-both",
+                                            });
+                                          }}
+                                          onPointerDown={(event) =>
+                                            handleSetPointerDown(
+                                              event,
+                                              exerciseWithSets,
+                                              set
+                                            )
+                                          }
+                                          onPointerUp={handleSetPointerEnd}
+                                          onPointerCancel={handleSetPointerEnd}
+                                          onPointerLeave={handleSetPointerEnd}
+                                          onPointerMove={handleSetPointerMove}
+                                          onContextMenu={(event) =>
+                                            event.preventDefault()
+                                          }
+                                          className={`relative bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm border border-gray-200 dark:border-gray-600 hover:shadow-md hover:border-blue-300 dark:hover:border-blue-600 transition-all cursor-pointer flex-shrink-0 min-w-[140px] select-none ${
+                                            duplicatingSetId === set.id
+                                              ? "ring-2 ring-blue-400"
+                                              : ""
+                                          }`}
+                                          style={{
+                                            userSelect: "none",
+                                            WebkitUserSelect: "none",
+                                            WebkitTouchCallout: "none",
+                                            touchAction: "manipulation",
+                                          }}
+                                          title="Tap to edit • Long press to duplicate"
+                                        >
+                                          <div className="text-center">
+                                            <div className="w-8 h-8 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-2">
+                                              <span className="text-gray-700 dark:text-gray-300 font-semibold text-sm">
+                                                {set.setNumber}
+                                              </span>
+                                            </div>
+                                            <div className="space-y-1">
+                                              <div className="text-lg font-bold text-gray-900 dark:text-white">
+                                                {set.weight} lbs
+                                              </div>
+                                              <div className="text-sm text-gray-600 dark:text-gray-400">
+                                                × {set.reps} reps
+                                              </div>
+                                            </div>
+                                          </div>
+                                          {duplicatingSetId === set.id && (
+                                            <div className="absolute top-2 right-2 text-[10px] font-semibold uppercase tracking-wide text-blue-500">
+                                              Duplicating…
+                                            </div>
+                                          )}
+                                        </div>
+                                      )
+                                    )}
+
+                                    {/* Add Set Card */}
+                                    <div
+                                      onClick={() => {
+                                        // Open modal to add new set
+                                        setEditingSet({
+                                          setId: "new", // Special ID for new sets
+                                          setNumber:
+                                            exercise.workoutSets.length + 1,
+                                          weight: 0,
+                                          reps: 0,
+                                          exerciseName: exercise.exercise,
+                                          equipment: "dumbbell-both",
+                                        });
+                                      }}
+                                      className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm border-2 border-dashed border-blue-300 dark:border-blue-600 hover:border-blue-400 dark:hover:border-blue-500 hover:shadow-md transition-all cursor-pointer flex-shrink-0 min-w-[140px]"
+                                    >
+                                      <div className="text-center">
+                                        <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mx-auto mb-2">
+                                          <svg
+                                            className="w-4 h-4 text-blue-600 dark:text-blue-400"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            viewBox="0 0 24 24"
+                                          >
+                                            <path
+                                              strokeLinecap="round"
+                                              strokeLinejoin="round"
+                                              strokeWidth={2}
+                                              d="M12 4v16m8-8H4"
+                                            />
+                                          </svg>
+                                        </div>
+                                        <div className="space-y-1">
+                                          <div className="text-sm font-medium text-blue-600 dark:text-blue-400">
+                                            Add Set
+                                          </div>
+                                          <div className="text-xs text-gray-500 dark:text-gray-400">
+                                            Click to add
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="text-center py-6">
+                                    <div className="text-gray-500 dark:text-gray-400 mb-3">
+                                      <p className="text-sm">
+                                        No sets recorded yet
+                                      </p>
+                                    </div>
+                                    <button
+                                      onClick={() => {
+                                        // Open modal to add first set
+                                        setEditingSet({
+                                          setId: "new", // Special ID for new sets
+                                          setNumber: 1,
+                                          weight: 0,
+                                          reps: 0,
+                                          exerciseName: exercise.exercise,
+                                          equipment: "dumbbell-both",
+                                        });
+                                      }}
+                                      className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 mx-auto"
+                                    >
+                                      <svg
+                                        className="w-4 h-4"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                      >
+                                        <path
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                          strokeWidth={2}
+                                          d="M12 4v16m8-8H4"
+                                        />
+                                      </svg>
+                                      Add First Set
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        ))
+                          );
+                        })
                       ) : (
                         <div className="text-center py-8">
                           <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">

@@ -9,6 +9,10 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
+type ParsedCSVRow = CSVRow & {
+  __parsed_extra?: string[];
+};
+
 interface CSVRow {
   Date: string;
   "Start Time"?: string;
@@ -62,17 +66,43 @@ export async function POST(request: NextRequest) {
       text = await file.text();
     }
 
-    const parsed = Papa.parse<CSVRow>(text, {
+    const parsed = Papa.parse<ParsedCSVRow>(text, {
       header: true,
       skipEmptyLines: true,
     });
 
-    if (parsed.errors.length > 0) {
+    const hasMeaningfulExtraFields = parsed.data.some((row) => {
+      if (!row.__parsed_extra) return false;
+      return row.__parsed_extra.some(
+        (value) => String(value ?? "").trim() !== ""
+      );
+    });
+
+    const filteredErrors = parsed.errors.filter((error) => {
+      if (
+        error.type === "FieldMismatch" &&
+        error.code === "TooManyFields" &&
+        !hasMeaningfulExtraFields
+      ) {
+        return false;
+      }
+      return true;
+    });
+
+    if (filteredErrors.length > 0 || hasMeaningfulExtraFields) {
       return NextResponse.json(
-        { error: "CSV parsing error", details: parsed.errors },
+        {
+          error: "CSV parsing error",
+          details: hasMeaningfulExtraFields ? parsed.errors : filteredErrors,
+        },
         { status: 400 }
       );
     }
+
+    const csvRows: CSVRow[] = parsed.data.map((row) => {
+      const { __parsed_extra, ...rest } = row;
+      return rest;
+    });
 
     // Helper function to parse integers with defaults
     const parseIntOrDefault = (
@@ -87,14 +117,10 @@ export async function POST(request: NextRequest) {
     // Group by date to create one workout session per date
     const sessionsByDate = new Map<string, any[]>();
 
-    
-
-    parsed.data.forEach((row, index) => {
+    csvRows.forEach((row, index) => {
       const dateStr = row.Date;
-      
 
       if (!dateStr || dateStr.trim() === "") {
-        
         return;
       }
 
@@ -109,8 +135,6 @@ export async function POST(request: NextRequest) {
       }
       sessionsByDate.get(dateStr)!.push(row);
     });
-
-    
 
     let totalSessions = 0;
     let totalExercises = 0;
@@ -134,12 +158,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    
-
     // Create one workout session per date with multiple exercises
     for (const [dateStr, rows] of sessionsByDate) {
       const firstRow = rows[0];
-      
 
       // No automatic category creation - user will add categories manually
 
@@ -147,7 +168,6 @@ export async function POST(request: NextRequest) {
       // Create date at noon local time to avoid UTC conversion issues
       const dateStringWithTime = dateStr + "T12:00:00";
       const dateObj = new Date(dateStringWithTime);
-      
 
       // Check if a session already exists for this date, location, and workout type
       const existingSession = await prisma.workoutSession.findFirst({
@@ -160,7 +180,6 @@ export async function POST(request: NextRequest) {
       });
 
       if (existingSession) {
-        
         continue; // Skip this session
       }
 
@@ -180,8 +199,6 @@ export async function POST(request: NextRequest) {
           notes: `Imported session with ${rows.length} exercises`,
         },
       });
-
-      
 
       totalSessions++;
 
@@ -204,7 +221,7 @@ export async function POST(request: NextRequest) {
               orderInSession: i + 1, // Order within the session
             },
           });
-          
+
           totalExercises++;
         } catch (exerciseError) {
           console.error(`Failed to create exercise ${i + 1}:`, exerciseError);
@@ -229,7 +246,6 @@ export async function POST(request: NextRequest) {
         0,
         undefined
       );
-      
     } catch (cacheError: any) {
       console.error("⚠️ Failed to clear Redis cache:", cacheError);
       console.error("⚠️ Cache error details:", cacheError.message);
