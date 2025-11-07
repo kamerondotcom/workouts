@@ -1367,6 +1367,7 @@ export default function WorkoutListSimple({
                                     style={{
                                       scrollbarWidth: "none",
                                       msOverflowStyle: "none",
+                                      overflowY: "visible",
                                     }}
                                   >
                                     {exerciseWithSets.workoutSets.map(
