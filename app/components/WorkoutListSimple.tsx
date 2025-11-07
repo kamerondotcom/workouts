@@ -1302,9 +1302,9 @@ export default function WorkoutListSimple({
                                   {/* Notes */}
                                   <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-2 sm:p-3 border border-blue-200 dark:border-blue-800">
                                     <div className="flex items-start gap-2 sm:gap-3">
-                                      <div className="w-7 h-7 sm:w-8 sm:h-8 bg-blue-100 dark:bg-blue-800/30 rounded-lg flex items-center justify-center flex-shrink-0">
+                                      <div className="hidden sm:flex w-8 h-8 bg-blue-100 dark:bg-blue-800/30 rounded-lg items-center justify-center flex-shrink-0">
                                         <svg
-                                          className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-600 dark:text-blue-400"
+                                          className="w-4 h-4 text-blue-600 dark:text-blue-400"
                                           fill="none"
                                           stroke="currentColor"
                                           viewBox="0 0 24 24"
@@ -1761,6 +1761,47 @@ export default function WorkoutListSimple({
                       e.target.select();
                     }}
                     onKeyDown={(e) => {
+                      if (["e", "E", "+", "-", "="].includes(e.key)) {
+                        e.preventDefault();
+                        return;
+                      }
+
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        // Trigger form submission
+                        const form = e.currentTarget.closest("form");
+                        if (form) {
+                          form.requestSubmit();
+                        }
+                        return;
+                      }
+
+                      const controlKeys = [
+                        "Backspace",
+                        "Tab",
+                        "ArrowLeft",
+                        "ArrowRight",
+                        "Delete",
+                        "Home",
+                        "End",
+                      ];
+
+                      if (
+                        controlKeys.includes(e.key) ||
+                        e.metaKey ||
+                        e.ctrlKey ||
+                        e.altKey
+                      ) {
+                        return;
+                      }
+
+                      if (e.key === ".") {
+                        if (editingSet.weight.toString().includes(".")) {
+                          e.preventDefault();
+                        }
+                        return;
+                      }
+
                       // If user starts typing a number and current value is 0, clear the field
                       if (editingSet.weight === 0 && /[1-9]/.test(e.key)) {
                         e.preventDefault();
@@ -1768,18 +1809,18 @@ export default function WorkoutListSimple({
                           ...editingSet,
                           weight: parseFloat(e.key) || 0,
                         });
-                      } else if (e.key === "Enter") {
+                        return;
+                      }
+
+                      if (!/[0-9]/.test(e.key)) {
                         e.preventDefault();
-                        // Trigger form submission
-                        const form = e.currentTarget.closest("form");
-                        if (form) {
-                          form.requestSubmit();
-                        }
+                        return;
                       }
                     }}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
                     min="0"
                     step="0.5"
+                    inputMode="decimal"
                     required
                   />
                 </div>
@@ -1805,6 +1846,40 @@ export default function WorkoutListSimple({
                       e.target.select();
                     }}
                     onKeyDown={(e) => {
+                      if (["e", "E", "+", "-", ".", "="].includes(e.key)) {
+                        e.preventDefault();
+                        return;
+                      }
+
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        // Trigger form submission
+                        const form = e.currentTarget.closest("form");
+                        if (form) {
+                          form.requestSubmit();
+                        }
+                        return;
+                      }
+
+                      const controlKeys = [
+                        "Backspace",
+                        "Tab",
+                        "ArrowLeft",
+                        "ArrowRight",
+                        "Delete",
+                        "Home",
+                        "End",
+                      ];
+
+                      if (
+                        controlKeys.includes(e.key) ||
+                        e.metaKey ||
+                        e.ctrlKey ||
+                        e.altKey
+                      ) {
+                        return;
+                      }
+
                       // If user starts typing a number and current value is 0, clear the field
                       if (editingSet.reps === 0 && /[1-9]/.test(e.key)) {
                         e.preventDefault();
@@ -1812,23 +1887,24 @@ export default function WorkoutListSimple({
                           ...editingSet,
                           reps: parseInt(e.key) || 0,
                         });
-                      } else if (e.key === "Enter") {
+                        return;
+                      }
+
+                      if (!/[0-9]/.test(e.key)) {
                         e.preventDefault();
-                        // Trigger form submission
-                        const form = e.currentTarget.closest("form");
-                        if (form) {
-                          form.requestSubmit();
-                        }
+                        return;
                       }
                     }}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
                     min="0"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     required
                   />
                 </div>
               </div>
 
-              <div className="flex gap-3 mt-6">
+              <div className="flex gap-2 sm:gap-3 mt-4 sm:mt-6">
                 {editingSet.setId !== "new" && (
                   <button
                     type="button"
@@ -1843,7 +1919,7 @@ export default function WorkoutListSimple({
                       }
                     }}
                     disabled={savingSet}
-                    className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                    className="px-3 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center whitespace-nowrap"
                   >
                     <svg
                       className="w-4 h-4"
@@ -1863,14 +1939,14 @@ export default function WorkoutListSimple({
                 <button
                   onClick={() => setEditingSet(null)}
                   disabled={savingSet}
-                  className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 text-sm text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={savingSet}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 px-3 py-2 bg-blue-600 text-sm text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
                 >
                   {savingSet ? "Saving..." : "Save Changes"}
                 </button>
@@ -1961,19 +2037,19 @@ export default function WorkoutListSimple({
                 />
               </div>
 
-              <div className="flex gap-3 mt-6">
+              <div className="flex gap-2 sm:gap-3 mt-4 sm:mt-6">
                 <button
                   type="button"
                   onClick={() => setEditingNotes(null)}
                   disabled={savingNotes}
-                  className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 text-sm text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={savingNotes}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 px-3 py-2 bg-blue-600 text-sm text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
                 >
                   {savingNotes ? "Saving..." : "Save Notes"}
                 </button>
