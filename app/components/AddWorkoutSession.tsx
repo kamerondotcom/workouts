@@ -154,7 +154,15 @@ export default function AddWorkoutSession({
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Add Workout Session" size="lg">
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form
+        onSubmit={handleSubmit}
+        className="space-y-4"
+        style={{
+          maxHeight: "calc(100dvh - 8rem)",
+          overflowY: "auto",
+          WebkitOverflowScrolling: "touch",
+        }}
+      >
         {/* Date and Time */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>

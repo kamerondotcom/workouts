@@ -771,7 +771,7 @@ export default function WorkoutListSimple({
                         {/* Component and Session Info in one line */}
                         <div className="flex items-center gap-3 mt-1">
                           {exercise.component && (
-                            <span className="inline-block bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 text-xs px-2 py-0.5 rounded-full">
+                            <span className="inline-block bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 text-xs px-2 py-0.5 rounded-full whitespace-nowrap max-w-[70%] overflow-hidden text-ellipsis">
                               {exercise.component}
                             </span>
                           )}
