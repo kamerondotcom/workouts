@@ -73,13 +73,22 @@ export default function Modal({
     document.addEventListener("keydown", handleEscKey);
 
     // Prevent body scroll when modal is open
+    const body = document.body;
+    const html = document.documentElement;
+    const previousBodyOverflow = body.style.overflow;
+    const previousHtmlOverflow = html.style.overflow;
+    const previousBodyPaddingRight = body.style.paddingRight;
     document.body.style.overflow = "hidden";
+    html.style.overflow = "hidden";
+
+    // Prevent layout shift when scrollbar disappears
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+    if (scrollbarWidth > 0) {
+      document.body.style.paddingRight = `${scrollbarWidth}px`;
+    }
 
     // Store current scroll position to preserve it
     const currentScrollY = window.scrollY;
-    document.body.style.top = `-${currentScrollY}px`;
-    document.body.style.position = "fixed";
-    document.body.style.width = "100%";
 
     return () => {
       if (timeoutId) clearTimeout(timeoutId);
@@ -87,10 +96,9 @@ export default function Modal({
       document.removeEventListener("keydown", handleEscKey);
 
       // Restore body styles and scroll position
-      document.body.style.overflow = "";
-      document.body.style.top = "";
-      document.body.style.position = "";
-      document.body.style.width = "";
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousHtmlOverflow;
+      document.body.style.paddingRight = previousBodyPaddingRight;
 
       // Restore scroll position
       window.scrollTo(0, currentScrollY);
@@ -115,8 +123,6 @@ export default function Modal({
         left: 0,
         right: 0,
         bottom: 0,
-        transform: "translateZ(0)", // Force hardware acceleration
-        WebkitTransform: "translateZ(0)",
         // Prevent viewport changes on mobile
         height: "100dvh", // Dynamic viewport height
         width: "100dvw", // Dynamic viewport width
