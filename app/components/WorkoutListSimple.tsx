@@ -1211,7 +1211,13 @@ export default function WorkoutListSimple({
                           return (
                             <div
                               key={exercise.id}
-                              className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-600 rounded-xl p-4 sm:p-6 shadow-sm border border-gray-200 dark:border-gray-600"
+                              className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-600 rounded-xl sm:rounded-xl shadow-sm border border-gray-200 dark:border-gray-600"
+                              style={{
+                                marginLeft: "-1.5rem",
+                                marginRight: "-1.5rem",
+                                padding: "0.75rem 1rem",
+                                borderRadius: "0.75rem",
+                              }}
                             >
                               {/* Exercise Header */}
                               <div className="mb-4 sm:mb-6">
