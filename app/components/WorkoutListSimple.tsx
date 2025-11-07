@@ -915,7 +915,7 @@ export default function WorkoutListSimple({
                 style={cardStyle}
               >
                 <div
-                  className="p-6 cursor-pointer relative"
+                  className="p-4 sm:p-6 cursor-pointer relative"
                   onClick={() => {
                     // Don't toggle while overlay is visible
                     if (showOverlay === session.id) return;
@@ -932,12 +932,12 @@ export default function WorkoutListSimple({
                       {/* Header with date and expand icon */}
                       <div className="flex items-start gap-2 mb-3">
                         <h3
-                          className={`text-lg sm:text-xl font-bold ${headingTextClass} flex-1 min-w-0 break-words`}
+                          className={`text-base sm:text-xl font-bold ${headingTextClass} flex-1 min-w-0 break-words`}
                         >
                           {formatUTCDate(session.date)}
                         </h3>
                         <svg
-                          className={`w-5 h-5 transition-transform ${caretTextClass} ${
+                          className={`w-4 h-4 sm:w-5 sm:h-5 transition-transform ${caretTextClass} ${
                             isCollapsed ? "-rotate-90" : ""
                           }`}
                           fill="none"
@@ -954,13 +954,17 @@ export default function WorkoutListSimple({
                       </div>
 
                       {/* Main content grid */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
                         {/* Left column - Location and workout type */}
                         <div className="space-y-2">
-                          <p className={`${locationTextClass} font-medium`}>
+                          <p
+                            className={`${locationTextClass} text-sm sm:text-base font-medium`}
+                          >
                             {session.location}
                           </p>
-                          <p className={`${workoutTypeTextClass} text-sm`}>
+                          <p
+                            className={`${workoutTypeTextClass} text-xs sm:text-sm`}
+                          >
                             {session.workoutType}
                           </p>
                         </div>
@@ -969,29 +973,41 @@ export default function WorkoutListSimple({
                         <div className="space-y-2">
                           <div className="flex items-center gap-4">
                             <div className="flex items-center gap-1">
-                              <span className={`${metricIconClass} text-sm`}>
+                              <span
+                                className={`${metricIconClass} text-xs sm:text-sm`}
+                              >
                                 ⏱️
                               </span>
-                              <span className={`${metricTextClass} text-sm`}>
+                              <span
+                                className={`${metricTextClass} text-xs sm:text-sm`}
+                              >
                                 {session.duration} min
                               </span>
                             </div>
                             {session.avgHeartRate && (
                               <div className="flex items-center gap-1">
-                                <span className={`${metricIconClass} text-sm`}>
+                                <span
+                                  className={`${metricIconClass} text-xs sm:text-sm`}
+                                >
                                   ❤️
                                 </span>
-                                <span className={`${metricTextClass} text-sm`}>
+                                <span
+                                  className={`${metricTextClass} text-xs sm:text-sm`}
+                                >
                                   {session.avgHeartRate} bpm
                                 </span>
                               </div>
                             )}
                             {session.effort && (
                               <div className="flex items-center gap-1">
-                                <span className={`${metricIconClass} text-sm`}>
+                                <span
+                                  className={`${metricIconClass} text-xs sm:text-sm`}
+                                >
                                   💪
                                 </span>
-                                <span className={`${metricTextClass} text-sm`}>
+                                <span
+                                  className={`${metricTextClass} text-xs sm:text-sm`}
+                                >
                                   {session.effort}
                                 </span>
                               </div>
@@ -1187,20 +1203,20 @@ export default function WorkoutListSimple({
 
                 {/* Collapsible Content */}
                 {!isCollapsed && (
-                  <div className="bg-white dark:bg-gray-800 p-6 border-t border-gray-200 dark:border-gray-700">
-                    <div className="space-y-6">
+                  <div className="bg-white dark:bg-gray-800 p-4 sm:p-6 border-t border-gray-200 dark:border-gray-700">
+                    <div className="space-y-4 sm:space-y-6">
                       {session.exercises && session.exercises.length > 0 ? (
                         session.exercises.map((exercise, exerciseIndex) => {
                           const exerciseWithSets = exercise as ExerciseWithSets;
                           return (
                             <div
                               key={exercise.id}
-                              className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-600 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-600"
+                              className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-600 rounded-xl p-4 sm:p-6 shadow-sm border border-gray-200 dark:border-gray-600"
                             >
                               {/* Exercise Header */}
-                              <div className="mb-6">
+                              <div className="mb-4 sm:mb-6">
                                 {/* Exercise Name */}
-                                <div className="mb-3">
+                                <div className="mb-2 sm:mb-3">
                                   {editingExercise?.exerciseId ===
                                   exercise.id ? (
                                     <input
@@ -1256,7 +1272,7 @@ export default function WorkoutListSimple({
                                     />
                                   ) : (
                                     <h3
-                                      className="text-xl font-bold text-gray-900 dark:text-white cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors border-b-2 border-transparent"
+                                      className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors border-b-2 border-transparent"
                                       onDoubleClick={() =>
                                         setEditingExercise({
                                           exerciseId: exercise.id,
@@ -1270,10 +1286,10 @@ export default function WorkoutListSimple({
                                 </div>
 
                                 {/* Exercise Details */}
-                                <div className="space-y-3">
+                                <div className="space-y-2 sm:space-y-3">
                                   {/* Component - Small and Subtle */}
                                   {exercise.component && (
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-1.5">
                                       <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
                                         Component:
                                       </span>
@@ -1284,11 +1300,11 @@ export default function WorkoutListSimple({
                                   )}
 
                                   {/* Notes */}
-                                  <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 border border-blue-200 dark:border-blue-800">
-                                    <div className="flex items-start gap-3">
-                                      <div className="w-8 h-8 bg-blue-100 dark:bg-blue-800/30 rounded-lg flex items-center justify-center flex-shrink-0">
+                                  <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-2 sm:p-3 border border-blue-200 dark:border-blue-800">
+                                    <div className="flex items-start gap-2 sm:gap-3">
+                                      <div className="w-7 h-7 sm:w-8 sm:h-8 bg-blue-100 dark:bg-blue-800/30 rounded-lg flex items-center justify-center flex-shrink-0">
                                         <svg
-                                          className="w-4 h-4 text-blue-600 dark:text-blue-400"
+                                          className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-600 dark:text-blue-400"
                                           fill="none"
                                           stroke="currentColor"
                                           viewBox="0 0 24 24"
@@ -1305,7 +1321,7 @@ export default function WorkoutListSimple({
                                         <div className="text-xs font-medium text-blue-600 dark:text-blue-400 uppercase tracking-wide">
                                           Notes
                                         </div>
-                                        <div className="text-sm text-blue-800 dark:text-blue-200 leading-relaxed">
+                                        <div className="text-xs sm:text-sm text-blue-800 dark:text-blue-200 leading-relaxed">
                                           {exercise.notes ? (
                                             <button
                                               onClick={() =>
@@ -1326,7 +1342,7 @@ export default function WorkoutListSimple({
                                                   notes: "",
                                                 })
                                               }
-                                              className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
+                                              className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors text-xs sm:text-sm"
                                             >
                                               <svg
                                                 className="w-3 h-3"
@@ -1353,8 +1369,8 @@ export default function WorkoutListSimple({
 
                               {/* Workout Sets - Enhanced Design */}
                               <div>
-                                <div className="flex items-center gap-2 mb-3">
-                                  <h5 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                                <div className="flex items-center gap-2 mb-2 sm:mb-3">
+                                  <h5 className="text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-300">
                                     📊 Set Details
                                   </h5>
                                   <div className="flex-1 h-px bg-gray-300 dark:bg-gray-600"></div>
@@ -1363,7 +1379,7 @@ export default function WorkoutListSimple({
                                 {exerciseWithSets.workoutSets &&
                                 exerciseWithSets.workoutSets.length > 0 ? (
                                   <div
-                                    className="flex gap-3 overflow-x-auto pb-2 [&::-webkit-scrollbar]:hidden"
+                                    className="flex gap-2 sm:gap-3 overflow-x-auto pb-2 [&::-webkit-scrollbar]:hidden"
                                     style={{
                                       scrollbarWidth: "none",
                                       msOverflowStyle: "none",
@@ -1405,7 +1421,7 @@ export default function WorkoutListSimple({
                                           onContextMenu={(event) =>
                                             event.preventDefault()
                                           }
-                                          className={`relative bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm border border-gray-200 dark:border-gray-600 hover:shadow-md hover:border-blue-300 dark:hover:border-blue-600 transition-all cursor-pointer flex-shrink-0 min-w-[140px] select-none ${
+                                          className={`relative bg-white dark:bg-gray-800 rounded-lg p-3 sm:p-4 shadow-sm border border-gray-200 dark:border-gray-600 hover:shadow-md hover:border-blue-300 dark:hover:border-blue-600 transition-all cursor-pointer flex-shrink-0 min-w-[120px] sm:min-w-[140px] select-none ${
                                             duplicatingSetId === set.id
                                               ? "ring-2 ring-blue-400"
                                               : ""
@@ -1419,16 +1435,16 @@ export default function WorkoutListSimple({
                                           title="Tap to edit • Long press to duplicate"
                                         >
                                           <div className="text-center">
-                                            <div className="w-8 h-8 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-2">
-                                              <span className="text-gray-700 dark:text-gray-300 font-semibold text-sm">
+                                            <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-2">
+                                              <span className="text-gray-700 dark:text-gray-300 font-semibold text-xs sm:text-sm">
                                                 {set.setNumber}
                                               </span>
                                             </div>
                                             <div className="space-y-1">
-                                              <div className="text-lg font-bold text-gray-900 dark:text-white">
+                                              <div className="text-base sm:text-lg font-bold text-gray-900 dark:text-white">
                                                 {set.weight} lbs
                                               </div>
-                                              <div className="text-sm text-gray-600 dark:text-gray-400">
+                                              <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
                                                 × {set.reps} reps
                                               </div>
                                             </div>
@@ -1456,12 +1472,12 @@ export default function WorkoutListSimple({
                                           equipment: "dumbbell-both",
                                         });
                                       }}
-                                      className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm border-2 border-dashed border-blue-300 dark:border-blue-600 hover:border-blue-400 dark:hover:border-blue-500 hover:shadow-md transition-all cursor-pointer flex-shrink-0 min-w-[140px]"
+                                      className="bg-white dark:bg-gray-800 rounded-lg p-3 sm:p-4 shadow-sm border-2 border-dashed border-blue-300 dark:border-blue-600 hover:border-blue-400 dark:hover:border-blue-500 hover:shadow-md transition-all cursor-pointer flex-shrink-0 min-w-[120px] sm:min-w-[140px]"
                                     >
                                       <div className="text-center">
-                                        <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mx-auto mb-2">
+                                        <div className="w-7 h-7 sm:w-8 sm:h-8 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mx-auto mb-2">
                                           <svg
-                                            className="w-4 h-4 text-blue-600 dark:text-blue-400"
+                                            className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-600 dark:text-blue-400"
                                             fill="none"
                                             stroke="currentColor"
                                             viewBox="0 0 24 24"
@@ -1475,10 +1491,10 @@ export default function WorkoutListSimple({
                                           </svg>
                                         </div>
                                         <div className="space-y-1">
-                                          <div className="text-sm font-medium text-blue-600 dark:text-blue-400">
+                                          <div className="text-xs sm:text-sm font-medium text-blue-600 dark:text-blue-400">
                                             Add Set
                                           </div>
-                                          <div className="text-xs text-gray-500 dark:text-gray-400">
+                                          <div className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400">
                                             Click to add
                                           </div>
                                         </div>
@@ -1486,9 +1502,9 @@ export default function WorkoutListSimple({
                                     </div>
                                   </div>
                                 ) : (
-                                  <div className="text-center py-6">
-                                    <div className="text-gray-500 dark:text-gray-400 mb-3">
-                                      <p className="text-sm">
+                                  <div className="text-center py-4 sm:py-6">
+                                    <div className="text-gray-500 dark:text-gray-400 mb-2 sm:mb-3">
+                                      <p className="text-xs sm:text-sm">
                                         No sets recorded yet
                                       </p>
                                     </div>
@@ -1504,10 +1520,10 @@ export default function WorkoutListSimple({
                                           equipment: "dumbbell-both",
                                         });
                                       }}
-                                      className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 mx-auto"
+                                      className="px-3 py-2 sm:px-4 bg-blue-600 text-white text-xs sm:text-sm rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-1.5 sm:gap-2 mx-auto"
                                     >
                                       <svg
-                                        className="w-4 h-4"
+                                        className="w-3.5 h-3.5 sm:w-4 sm:h-4"
                                         fill="none"
                                         stroke="currentColor"
                                         viewBox="0 0 24 24"
