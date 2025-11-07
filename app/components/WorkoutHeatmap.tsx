@@ -106,7 +106,7 @@ export default function WorkoutHeatmap({
 
   // Get text color based on intensity
   const getTextColor = (intensity: number) => {
-    if (intensity === 0) return "text-gray-500 dark:text-gray-400";
+    if (intensity === 0) return "text-gray-400 dark:text-gray-500";
     if (intensity <= 0.5) return "text-gray-700 dark:text-gray-300";
     return "text-white";
   };
@@ -157,8 +157,14 @@ export default function WorkoutHeatmap({
                 count !== 1 ? "s" : ""
               }`}
             >
-              <span className="font-semibold transition-all duration-300 ease-in-out">
-                {count > 0 ? count : ""}
+              <span
+                className={`transition-all duration-300 ease-in-out ${
+                  count > 0
+                    ? "font-semibold"
+                    : "font-medium text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-500"
+                }`}
+              >
+                {count > 0 ? count : dayNames[index]}
               </span>
             </div>
           );
