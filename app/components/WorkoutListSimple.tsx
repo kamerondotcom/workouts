@@ -662,14 +662,26 @@ export default function WorkoutListSimple({
       </div>
 
       {/* Search Bar */}
-      <div className="w-full">
+      <div className="w-full relative">
         <input
           type="text"
           placeholder="Search exercises..."
           value={searchInput}
           onChange={(e) => handleSearch(e.target.value)}
-          className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+          className="w-full px-4 py-2 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
         />
+        {searchInput.trim() && (
+          <button
+            type="button"
+            onClick={() => handleSearch("")}
+            className="absolute inset-y-0 right-2 flex items-center"
+            aria-label="Clear search"
+          >
+            <span className="w-5 h-5 flex items-center justify-center rounded-full bg-gray-200 hover:bg-gray-300 dark:bg-gray-600 dark:hover:bg-gray-500 text-gray-600 dark:text-gray-200 text-sm">
+              ×
+            </span>
+          </button>
+        )}
       </div>
 
       {/* Show search results if searching */}
