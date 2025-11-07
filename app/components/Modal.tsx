@@ -123,6 +123,8 @@ export default function Modal({
         left: 0,
         right: 0,
         bottom: 0,
+        minHeight: "100vh",
+        minWidth: "100vw",
         // Prevent viewport changes on mobile
         height: "100dvh", // Dynamic viewport height
         width: "100dvw", // Dynamic viewport width
